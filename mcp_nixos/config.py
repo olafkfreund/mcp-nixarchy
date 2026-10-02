@@ -17,13 +17,6 @@ class DocumentParseError(Exception):
 NIXOS_API = os.environ.get("ELASTICSEARCH_URL", "https://search.nixos.org/backend").rstrip("/")
 NIXOS_AUTH = ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
 
-# Base channel patterns - these are dynamic and auto-discovered
-BASE_CHANNELS = {
-    "unstable": "nixos-unstable",
-    "25.05": "nixos-25.05",
-    "25.11": "nixos-25.11",
-}
-
 # Fallback channels when API discovery fails (static mappings based on recent patterns)
 # Last-resort channel map, used only when alias discovery fails outright.
 # These generations bit-rot: Hydra retires old `latest-<gen>-nixos-*` aliases,
@@ -60,8 +53,6 @@ FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 # approximately 60 chunks / 17,000 options and fits comfortably in memory.
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
 NIXVIM_OPTIONS_CHUNKS_BASE = "https://nix-community.github.io/nixvim/search/data/options/chunks"
-# Kept for backward compatibility / potential scope lookups; not used by the chunked loader.
-NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/data"
 
 # NVF options from the latest published (unstable) documentation.
 NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"

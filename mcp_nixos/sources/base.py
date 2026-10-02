@@ -38,20 +38,6 @@ def get_channels() -> dict[str, str]:
     return channel_cache.get_resolved()
 
 
-def validate_channel(channel: str) -> bool:
-    channels = get_channels()
-    if channel in channels:
-        index = channels[channel]
-        try:
-            resp = HTTP.post(
-                f"{NIXOS_API}/{index}/_count", json={"query": {"match_all": {}}}, auth=NIXOS_AUTH, timeout=5
-            )
-            return resp.status_code == 200 and resp.json().get("count", 0) > 0
-        except Exception:
-            return False
-    return False
-
-
 def get_channel_suggestions(invalid_channel: str) -> str:
     channels = get_channels()
     available = list(channels.keys())
