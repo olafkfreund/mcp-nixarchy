@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 1
 author: olafkfreund
 ---
@@ -91,36 +91,18 @@ That leaves three problems.
   option questions on a nixarchy machine. Local data comes first.
 - `flake-inputs` must stay usable for the current project's flake.
 
-## Open questions
+## Decisions (approved 2026-10-02)
 
-1. **Depth of the rename.** Options:
-   - (a) Rename everything, including the Python module `mcp_nixos` →
-     `mcp_nixarchy`. This is a hard fork and upstream merges become painful.
-   - (b) Rename the distribution, CLI, flake outputs and docs, and keep the
-     `mcp_nixos` module name internally so upstream fixes still merge.
-
-   Recommendation: (b), plus a `mcp-nixos` CLI alias for one release.
-2. **Upstream relationship.** Should the generic fixes (env override,
-   session/retry, cache locks, `flake-inputs` path check, `limit`, stats) also
-   go upstream as PRs? Recommendation: yes. Keep merging from upstream; it
-   costs little while the module name stays the same.
-3. **Distribution.** Options:
-   - Flake only, with GitHub releases.
-   - Also PyPI, GHCR or FlakeHub under nixarchy names.
-   - Keep or delete the VitePress website.
-
-   Recommendation: flake and GitHub releases only. Delete `website/` and the
-   publish workflows.
-4. **Where nixarchy option data comes from.** Options:
-   - (a) nixarchy builds `options.json` with `nixosOptionsDoc` and installs it
-     at a stable path on the system; the server reads it.
-   - (b) The server evaluates the nixarchy flake itself.
-   - (c) A copy published on GitHub, used when not running on nixarchy.
-
-   Recommendation: (a), with (c) as the fallback.
-5. **Tracking.** Should the nixarchy-side changes get their own issue in the
-   nixarchy repo, linked to this one? Recommendation: yes. The work in this
-   repo lands first; nixarchy then switches its input.
-6. **Docs source.** Should the nixarchy manual be indexed from the installed
-   system (if nixarchy ships it) or fetched from GitHub? Recommendation: same
-   pattern as Q4, local first.
+1. Rename the distribution, CLI, flake outputs and docs to `mcp-nixarchy`.
+   Keep the `mcp_nixos` Python module so upstream merges stay cheap. Keep a
+   `mcp-nixos` CLI alias for one release.
+2. Send the generic fixes upstream as PRs, and keep merging from upstream.
+3. Distribute through the flake and GitHub releases only. Delete `website/`
+   and the PyPI, Docker, FlakeHub and website workflows.
+4. nixarchy option data comes from an `options.json` that nixarchy builds with
+   `nixosOptionsDoc` and installs at a stable path. A copy published on GitHub
+   is the fallback.
+5. The nixarchy-side changes get their own issue in the nixarchy repo, linked
+   to this one, and land after this repo.
+6. The nixarchy manual is read from the installed system first, with GitHub
+   as the fallback.
