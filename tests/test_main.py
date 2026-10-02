@@ -161,3 +161,19 @@ class TestMainTransport:
         with patch.dict(os.environ, {"MCP_NIXOS_TRANSPORT": "http", "MCP_NIXOS_PATH": path}):
             with pytest.raises(SystemExit, match="1"):
                 main()
+
+
+@pytest.mark.unit
+def test_elasticsearch_url_env_override(monkeypatch):
+    import importlib
+
+    from mcp_nixos import config
+
+    monkeypatch.setenv("ELASTICSEARCH_URL", "http://localhost:9200/")
+    try:
+        importlib.reload(config)
+        assert config.NIXOS_API == "http://localhost:9200"
+    finally:
+        monkeypatch.delenv("ELASTICSEARCH_URL")
+        importlib.reload(config)
+    assert config.NIXOS_API == "https://search.nixos.org/backend"
