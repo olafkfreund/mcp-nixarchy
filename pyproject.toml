@@ -3,9 +3,9 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "mcp-nixos"
+name = "mcp-nixarchy"
 version = "3.1.0"
-description = "Model Context Protocol server for NixOS, Home Manager, and nix-darwin resources"
+description = "MCP server for NixOS, Home Manager, nix-darwin and nixarchy"
 readme = "README.md"
 authors = [
     {name = "James Brink", email = "brink.james@gmail.com"},
@@ -46,8 +46,16 @@ win = [
     "pywin32>=308.0",  # Required for Windows-specific file operations and tests
 ]
 
+[project.urls]
+Homepage = "https://github.com/olafkfreund/mcp-nixarchy"
+
+[tool.hatch.build.targets.wheel]
+# The module keeps its upstream name so upstream merges stay cheap.
+packages = ["mcp_nixos"]
+
 [project.scripts]
-mcp-nixos = "mcp_nixos.server:main"
+mcp-nixarchy = "mcp_nixos.server:main"
+mcp-nixos = "mcp_nixos.server:main"  # alias, remove after v3.2
 
 [tool.ruff]
 line-length = 120

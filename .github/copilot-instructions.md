@@ -1,14 +1,14 @@
-# GitHub Copilot Instructions for MCP-NixOS
+# GitHub Copilot Instructions for mcp-nixarchy
 
 ## Project Context
 
-MCP-NixOS is a Model Context Protocol (MCP) server providing real-time information about NixOS packages, options, Home Manager, nix-darwin, and flakes. The server prevents AI hallucination by querying official APIs and documentation sources.
+mcp-nixarchy (a fork of utensils/mcp-nixos; the Python module stays `mcp_nixos`) is a Model Context Protocol (MCP) server providing real-time information about NixOS packages, options, Home Manager, nix-darwin, flakes, and the nixarchy distribution's options and manual. The server prevents AI hallucination by querying official APIs and documentation sources.
 
 **Architecture:** Modular FastMCP 4.x async server exposing only 2 MCP tools (consolidated from 17 in v1.0 to reduce context window usage).
 
 **Key Modules:**
 - `mcp_nixos/server.py` - MCP tools, routing, and entry point
-- `mcp_nixos/sources/` - Per-source modules (nixos, home_manager, darwin, flakehub, wiki, etc.)
+- `mcp_nixos/sources/` - Per-source modules (nixos, home_manager, darwin, flakehub, wiki, nixarchy, etc.)
 - `mcp_nixos/config.py` - Configuration constants
 - `mcp_nixos/caches.py` - Cache implementations
 - `mcp_nixos/utils.py` - Shared utilities
@@ -27,7 +27,7 @@ typecheck               # Run mypy type checker
 build                   # Build package distributions
 ```
 
-**Python-only alternative:** `uv pip install -e ".[dev]"` then `uv run mcp-nixos`
+**Python-only alternative:** `uv pip install -e ".[dev]"` then `uv run mcp-nixarchy`
 
 ### Testing Strategy
 
@@ -69,7 +69,8 @@ Each source has its own query implementation:
 - **Home Manager/nix-darwin:** HTML parsing from official docs (BeautifulSoup)
 - **FlakeHub:** REST API at api.flakehub.com with pagination
 - **Nixvim:** Paginated JSON chunks from NuschtOS search (cached in `NixvimCache`)
-- **Flake inputs:** Direct Nix store access via `nix flake archive --json` (requires local nix)
+- **Flake inputs:** Direct Nix store access via `nix flake archive --json` (requires local nix); a flake directory `source` must be under cwd or `$HOME`, and the action is refused over HTTP unless `MCP_NIXOS_ALLOW_FLAKE_INPUTS=1`
+- **nixarchy:** options from `$MCP_NIXARCHY_OPTIONS`, `/etc/nixarchy/options.json`, or the GitHub release asset; manual from `$MCP_NIXARCHY_DOCS`, `/etc/nixarchy/docs`, or GitHub
 
 ### 4. Error Handling Convention
 
@@ -107,9 +108,9 @@ async def nix(...) -> str:
 ## CI/CD & Release Process
 
 - **CI runs on all PRs:** flake check, Nix build, Python distribution build, package validation (twine), lint, typecheck, tests
-- **Automated releases:** Release Please creates the version tag and GitHub Release; the authenticated release event publishes PyPI, Docker Hub, GHCR, and FlakeHub from that exact tag
+- **Automated releases:** Release Please creates the version tag and GitHub Release. Distribution is the flake plus GitHub releases only
 - **Commit convention:** `type: summary` format (feat:, fix:, docs:, refactor:, test:, chore:)
-- **Use `/release` command:** Review and merge the generated release PR, then verify every registry; do not bump versions or create tags manually
+- **Use `/release` command:** Review and merge the generated release PR, then verify the GitHub release; do not bump versions or create tags manually
 
 ## Common Pitfalls
 

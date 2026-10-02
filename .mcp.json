@@ -3,7 +3,7 @@
     "nixos": {
       "type": "stdio",
       "command": "nix",
-      "args": ["run", ".#mcp-nixos"]
+      "args": ["run", ".#mcp-nixarchy"]
     }
   }
 }

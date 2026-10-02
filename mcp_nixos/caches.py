@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -18,6 +19,10 @@ from .config import (
     FALLBACK_CHANNELS,
     FLAKE_INDEX,
     HOME_MANAGER_URL,
+    NIXARCHY_DOCS_PATH,
+    NIXARCHY_OPTIONS_PATH,
+    NIXARCHY_OPTIONS_URL,
+    NIXARCHY_REPO,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
     NIXOS_AUTH,
@@ -26,7 +31,7 @@ from .config import (
     NVF_OPTIONS_URL,
     APIError,
 )
-from .utils import parse_html_options
+from .utils import HTTP, parse_html_options
 
 if TYPE_CHECKING:
     from .sources.nvf import NvfOption
@@ -175,7 +180,7 @@ class ChannelCache:
         picked up automatically instead of bit-rotting in the source.
         """
         try:
-            resp = requests.get(
+            resp = HTTP.get(
                 f"{NIXOS_API}/_cat/aliases?format=json",
                 auth=NIXOS_AUTH,
                 timeout=10,
@@ -213,7 +218,7 @@ class ChannelCache:
         complete = bool(aliases)
         for alias in aliases:
             try:
-                count_resp = requests.post(
+                count_resp = HTTP.post(
                     f"{NIXOS_API}/{alias}/_count",
                     json={"query": {"match_all": {}}},
                     auth=NIXOS_AUTH,
@@ -303,6 +308,9 @@ class ChannelCache:
 channel_cache = ChannelCache()
 
 
+_FAILURE_COOLDOWN = 60.0
+
+
 class NixvimCache:
     """Cache for Nixvim options fetched from NuschtOS chunked JSON.
 
@@ -321,60 +329,75 @@ class NixvimCache:
     def __init__(self) -> None:
         self.options: list[dict[str, Any]] | None = None
         self._init_lock = threading.Lock()
+        self._failed_at: float | None = None
+        self._failure: APIError | None = None
 
     def get_options(self) -> list[dict[str, Any]]:
-        """Fetch and cache all Nixvim options from NuschtOS chunk JSON."""
+        """Fetch and cache all Nixvim options, backing off for a minute after a failure."""
         if self.options is not None:
             return self.options
 
         with self._init_lock:
             if self.options is not None:
                 return self.options
-
-            all_options: list[dict[str, Any]] = []
-            chunk_id = 0
+            if self._failed_at is not None and self._failure is not None:
+                if time.monotonic() - self._failed_at < _FAILURE_COOLDOWN:
+                    raise APIError(str(self._failure))
             try:
-                while True:
-                    url = f"{NIXVIM_OPTIONS_CHUNKS_BASE}/{chunk_id}.json"
-                    resp = requests.get(url, timeout=30)
-
-                    if resp.status_code == 404:
-                        # Treat as end-of-pagination — but a 404 on the *first*
-                        # chunk almost always means a config error (wrong base URL
-                        # or layout change), so surface that distinctly.
-                        if chunk_id == 0:
-                            raise APIError(
-                                f"First Nixvim options chunk returned 404 at {url}; "
-                                "the NuschtOS data layout may have changed again."
-                            )
-                        break
-
-                    resp.raise_for_status()
-                    chunk_data = resp.json()
-
-                    if isinstance(chunk_data, list):
-                        all_options.extend(chunk_data)
-                    else:
-                        # Unexpected payload: a layout/format change in the
-                        # middle of the chunk sequence. Fail loud so we don't
-                        # silently cache a partial option set.
-                        raise APIError(
-                            f"Unexpected Nixvim options payload at {url}: "
-                            f"expected JSON list, got {type(chunk_data).__name__}."
-                        )
-
-                    chunk_id += 1
-
-                self.options = all_options
-                return self.options
-            except requests.Timeout as exc:
-                raise APIError("Timeout fetching Nixvim options") from exc
-            except requests.RequestException as exc:
-                raise APIError(f"Failed to fetch Nixvim options: {exc}") from exc
-            except APIError:
+                self.options = self._fetch()
+            except APIError as exc:
+                self._failed_at = time.monotonic()
+                self._failure = exc
                 raise
-            except Exception as exc:
-                raise APIError(f"Failed to parse Nixvim options: {exc}") from exc
+            self._failed_at = None
+            self._failure = None
+            return self.options
+
+    def _fetch(self) -> list[dict[str, Any]]:
+        """Walk the NuschtOS chunks; raise APIError on any failure."""
+        all_options: list[dict[str, Any]] = []
+        chunk_id = 0
+        try:
+            while True:
+                url = f"{NIXVIM_OPTIONS_CHUNKS_BASE}/{chunk_id}.json"
+                resp = HTTP.get(url, timeout=30)
+
+                if resp.status_code == 404:
+                    # Treat as end-of-pagination — but a 404 on the *first*
+                    # chunk almost always means a config error (wrong base URL
+                    # or layout change), so surface that distinctly.
+                    if chunk_id == 0:
+                        raise APIError(
+                            f"First Nixvim options chunk returned 404 at {url}; "
+                            "the NuschtOS data layout may have changed again."
+                        )
+                    break
+
+                resp.raise_for_status()
+                chunk_data = resp.json()
+
+                if isinstance(chunk_data, list):
+                    all_options.extend(chunk_data)
+                else:
+                    # Unexpected payload: a layout/format change in the
+                    # middle of the chunk sequence. Fail loud so we don't
+                    # silently cache a partial option set.
+                    raise APIError(
+                        f"Unexpected Nixvim options payload at {url}: "
+                        f"expected JSON list, got {type(chunk_data).__name__}."
+                    )
+
+                chunk_id += 1
+
+            return all_options
+        except requests.Timeout as exc:
+            raise APIError("Timeout fetching Nixvim options") from exc
+        except requests.RequestException as exc:
+            raise APIError(f"Failed to fetch Nixvim options: {exc}") from exc
+        except APIError:
+            raise
+        except Exception as exc:
+            raise APIError(f"Failed to parse Nixvim options: {exc}") from exc
 
 
 nixvim_cache = NixvimCache()
@@ -385,6 +408,7 @@ class NvfCache:
 
     def __init__(self) -> None:
         self.options: list[NvfOption] | None = None
+        self._init_lock = threading.Lock()
 
     @staticmethod
     def _extract_text(option: Tag, selector: str, label: str = "") -> str:
@@ -451,23 +475,27 @@ class NvfCache:
         if self.options is not None:
             return self.options
 
-        try:
-            response = requests.get(NVF_OPTIONS_URL, timeout=30)
-            response.raise_for_status()
-            options = self._parse_options(response.content)
-            if not options:
-                raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-            self.options = options
-            return self.options
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching NVF options") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch NVF options: {exc}") from exc
-        except APIError:
-            raise
-        except Exception as exc:
-            raise APIError(f"Failed to parse NVF options: {exc}") from exc
+            try:
+                response = HTTP.get(NVF_OPTIONS_URL, timeout=30)
+                response.raise_for_status()
+                options = self._parse_options(response.content)
+                if not options:
+                    raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+
+                self.options = options
+                return self.options
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching NVF options") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch NVF options: {exc}") from exc
+            except APIError:
+                raise
+            except Exception as exc:
+                raise APIError(f"Failed to parse NVF options: {exc}") from exc
 
 
 nvf_cache = NvfCache()
@@ -486,7 +514,11 @@ class HtmlOptionsCache:
         self.url = url
         self.display_name = display_name
         self.options: list[dict[str, str]] | None = None
+        self.origin = ""  # where the data came from; only set by sources with several locations
         self._init_lock = threading.Lock()
+
+    def _load(self) -> list[dict[str, str]]:
+        return parse_html_options(self.url, limit=None)
 
     def get_options(self) -> list[dict[str, str]]:
         """Fetch, parse, and cache the full option catalogue."""
@@ -497,7 +529,7 @@ class HtmlOptionsCache:
             if self.options is not None:
                 return self.options
 
-            options = parse_html_options(self.url, limit=None)
+            options = self._load()
             if not options:
                 raise APIError(f"Failed to parse {self.display_name} options: no options found")
 
@@ -509,42 +541,195 @@ home_manager_cache = HtmlOptionsCache(HOME_MANAGER_URL, "Home Manager")
 darwin_cache = HtmlOptionsCache(DARWIN_URL, "nix-darwin")
 
 
+def _option_text(value: Any) -> str:
+    """Render a nixosOptionsDoc default/example: {_type, text} today, a raw value in older output."""
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("text", ""))
+    return json.dumps(value)
+
+
+def _declarations(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return ", ".join(str(d) for d in value)
+    return ""
+
+
+class NixarchyOptionsCache(HtmlOptionsCache):
+    """nixarchy module options from an options.json (installed copy, env override, or GitHub release)."""
+
+    def __init__(self) -> None:
+        super().__init__(url="", display_name="nixarchy")
+
+    def _load(self) -> list[dict[str, str]]:
+        override = os.environ.get("MCP_NIXARCHY_OPTIONS")
+        if override:
+            location, origin = override, f"custom ({override})"
+        elif os.path.isfile(NIXARCHY_OPTIONS_PATH):
+            location, origin = NIXARCHY_OPTIONS_PATH, f"installed ({NIXARCHY_OPTIONS_PATH})"
+        else:
+            location = NIXARCHY_OPTIONS_URL
+            origin = f"GitHub release {location} (may differ from your installed nixarchy)"
+
+        try:
+            if location.startswith(("http://", "https://")):
+                resp = HTTP.get(location, timeout=30)
+                resp.raise_for_status()
+                raw = resp.json()
+            else:
+                with open(location, encoding="utf-8") as f:
+                    raw = json.load(f)
+            options = []
+            for name, v in raw.items():
+                if not isinstance(v, dict):
+                    continue
+                desc = v.get("description", "")
+                if isinstance(desc, dict):  # older nixosOptionsDoc: {"_type": "mdDoc", "text": ...}
+                    desc = desc.get("text", "")
+                options.append(
+                    {
+                        "name": name,
+                        "type": str(v.get("type", "")),
+                        "description": (desc if isinstance(desc, str) else str(desc)).strip(),
+                        "default": _option_text(v.get("default")),
+                        "example": _option_text(v.get("example")),
+                        "declared_in": _declarations(v.get("declarations")),
+                    }
+                )
+        except Exception as exc:
+            raise APIError(
+                f"nixarchy options catalogue not available ({location}): {exc}. "
+                f"It is installed by nixarchy at {NIXARCHY_OPTIONS_PATH}."
+            ) from exc
+        self.origin = origin
+        return options
+
+
+nixarchy_options_cache = NixarchyOptionsCache()
+
+
+class NixarchyDocsCache:
+    """The nixarchy manual: markdown pages from a local directory, else from GitHub."""
+
+    def __init__(self) -> None:
+        self.pages: dict[str, tuple[str, str]] | None = None  # id -> (title, markdown)
+        self.origin = ""
+        self._init_lock = threading.Lock()
+
+    @staticmethod
+    def _add(pages: dict[str, tuple[str, str]], page_id: str, text: str) -> None:
+        title = next((line[2:].strip() for line in text.splitlines() if line.startswith("# ")), page_id)
+        pages[page_id] = (title, text)
+
+    def _load_dir(self, root: str) -> dict[str, tuple[str, str]]:
+        pages: dict[str, tuple[str, str]] = {}
+        manual = os.path.join(root, "manual")
+        for name in sorted(os.listdir(manual)) if os.path.isdir(manual) else []:
+            if name.endswith(".md"):
+                with open(os.path.join(manual, name), encoding="utf-8") as f:
+                    self._add(pages, name[:-3], f.read())
+        llms = os.path.join(root, "llms.txt")
+        if os.path.isfile(llms):
+            with open(llms, encoding="utf-8") as f:
+                self._add(pages, "llms", f.read())
+        return pages
+
+    def _load_github(self) -> dict[str, tuple[str, str]]:
+        pages: dict[str, tuple[str, str]] = {}
+        resp = HTTP.get(f"https://api.github.com/repos/{NIXARCHY_REPO}/contents/docs/manual", timeout=30)
+        resp.raise_for_status()
+        for entry in resp.json():
+            if not str(entry.get("name", "")).endswith(".md") or not entry.get("download_url"):
+                continue
+            try:
+                page = HTTP.get(entry["download_url"], timeout=30)
+                page.raise_for_status()
+            except requests.RequestException:
+                continue  # one broken page must not hide the rest of the manual
+            self._add(pages, entry["name"][:-3], page.text)
+        try:
+            llms = HTTP.get(f"https://raw.githubusercontent.com/{NIXARCHY_REPO}/main/docs/llms.txt", timeout=30)
+            llms.raise_for_status()
+            self._add(pages, "llms", llms.text)
+        except requests.RequestException:
+            pass  # llms.txt is optional
+        return pages
+
+    def get_pages(self) -> dict[str, tuple[str, str]]:
+        """Load and cache the manual pages; the origin says where they came from."""
+        if self.pages is not None:
+            return self.pages
+
+        with self._init_lock:
+            if self.pages is not None:
+                return self.pages
+
+            override = os.environ.get("MCP_NIXARCHY_DOCS")
+            try:
+                if override:
+                    pages, origin = self._load_dir(override), f"custom ({override})"
+                elif os.path.isdir(NIXARCHY_DOCS_PATH):
+                    pages, origin = self._load_dir(NIXARCHY_DOCS_PATH), f"installed ({NIXARCHY_DOCS_PATH})"
+                else:
+                    pages = self._load_github()
+                    origin = f"GitHub {NIXARCHY_REPO} (may differ from your installed nixarchy)"
+            except Exception as exc:
+                raise APIError(f"nixarchy manual not available: {exc}") from exc
+            if not pages:
+                raise APIError(f"nixarchy manual not available: no pages found in {origin}")
+
+            self.pages = pages
+            self.origin = origin
+            return self.pages
+
+
+nixarchy_docs_cache = NixarchyDocsCache()
+
+
 class NixDevCache:
     """Cache for nix.dev Sphinx search index."""
 
     def __init__(self) -> None:
         self.index: dict[str, Any] | None = None
+        self._init_lock = threading.Lock()
 
     def get_index(self) -> dict[str, Any]:
         """Fetch and cache nix.dev search index."""
         if self.index is not None:
             return self.index
 
-        try:
-            resp = requests.get(NIXDEV_SEARCH_INDEX, timeout=30)
-            resp.raise_for_status()
+        with self._init_lock:
+            if self.index is not None:
+                return self.index
 
-            # Parse JavaScript: Search.setIndex({...})
-            content = resp.text.strip()
-            if content.startswith("Search.setIndex("):
-                match = re.search(r"Search\.setIndex\((.*)\)\s*$", content, re.DOTALL)
-                if match:
-                    json_str = match.group(1)
-                    self.index = json.loads(json_str)
+            try:
+                resp = HTTP.get(NIXDEV_SEARCH_INDEX, timeout=30)
+                resp.raise_for_status()
+
+                # Parse JavaScript: Search.setIndex({...})
+                content = resp.text.strip()
+                if content.startswith("Search.setIndex("):
+                    match = re.search(r"Search\.setIndex\((.*)\)\s*$", content, re.DOTALL)
+                    if match:
+                        json_str = match.group(1)
+                        self.index = json.loads(json_str)
+                    else:
+                        raise ValueError("Unexpected search index format")
                 else:
                     raise ValueError("Unexpected search index format")
-            else:
-                raise ValueError("Unexpected search index format")
 
-            if self.index is None:
-                raise APIError("Failed to parse nix.dev index: empty result")
-            return self.index
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching nix.dev search index") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch nix.dev index: {exc}") from exc
-        except Exception as exc:
-            raise APIError(f"Failed to parse nix.dev index: {exc}") from exc
+                if self.index is None:
+                    raise APIError("Failed to parse nix.dev index: empty result")
+                return self.index
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching nix.dev search index") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch nix.dev index: {exc}") from exc
+            except Exception as exc:
+                raise APIError(f"Failed to parse nix.dev index: {exc}") from exc
 
 
 nixdev_cache = NixDevCache()
@@ -556,30 +741,35 @@ class NoogleCache:
     def __init__(self) -> None:
         self._data: list[dict[str, Any]] | None = None
         self._builtin_types: dict[str, dict[str, str]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_data(self) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
         """Fetch and cache all Noogle function data."""
         if self._data is not None:
             return self._data, self._builtin_types or {}
 
-        try:
-            resp = requests.get(NOOGLE_API, timeout=60)
-            resp.raise_for_status()
-            payload = resp.json()
+        with self._init_lock:
+            if self._data is not None:
+                return self._data, self._builtin_types or {}
 
-            data: list[dict[str, Any]] = payload.get("data", [])
-            builtin_types: dict[str, dict[str, str]] = payload.get("builtinTypes", {})
+            try:
+                resp = HTTP.get(NOOGLE_API, timeout=60)
+                resp.raise_for_status()
+                payload = resp.json()
 
-            self._data = data
-            self._builtin_types = builtin_types
+                data: list[dict[str, Any]] = payload.get("data", [])
+                builtin_types: dict[str, dict[str, str]] = payload.get("builtinTypes", {})
 
-            return data, builtin_types
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching Noogle data") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch Noogle data: {exc}") from exc
-        except Exception as exc:
-            raise APIError(f"Failed to parse Noogle data: {exc}") from exc
+                self._data = data
+                self._builtin_types = builtin_types
+
+                return data, builtin_types
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching Noogle data") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch Noogle data: {exc}") from exc
+            except Exception as exc:
+                raise APIError(f"Failed to parse Noogle data: {exc}") from exc
 
 
 noogle_cache = NoogleCache()

@@ -7,13 +7,13 @@ from typing import Any
 import requests
 
 from .. import __version__
-from ..caches import HtmlOptionsCache, channel_cache, darwin_cache, home_manager_cache
+from ..caches import HtmlOptionsCache, channel_cache, darwin_cache, home_manager_cache, nixarchy_options_cache
 from ..config import (
     NIXOS_API,
     NIXOS_AUTH,
     APIError,
 )
-from ..utils import error, score_option_match
+from ..utils import HTTP, error, score_option_match
 
 # Match the 40-char hex commit appended to unstable ES indices,
 # e.g. `nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc`.
@@ -27,7 +27,7 @@ _COMMIT_IN_INDEX = re.compile(r"-([0-9a-f]{40})$")
 _BRANCH_REV_TTL = 600.0
 _BRANCH_REVS: dict[str, tuple[str, float]] = {}
 
-_GITHUB_USER_AGENT = f"mcp-nixos/{__version__}"
+_GITHUB_USER_AGENT = f"mcp-nixarchy/{__version__}"
 
 # =============================================================================
 # Channel helpers
@@ -36,20 +36,6 @@ _GITHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 
 def get_channels() -> dict[str, str]:
     return channel_cache.get_resolved()
-
-
-def validate_channel(channel: str) -> bool:
-    channels = get_channels()
-    if channel in channels:
-        index = channels[channel]
-        try:
-            resp = requests.post(
-                f"{NIXOS_API}/{index}/_count", json={"query": {"match_all": {}}}, auth=NIXOS_AUTH, timeout=5
-            )
-            return resp.status_code == 200 and resp.json().get("count", 0) > 0
-        except Exception:
-            return False
-    return False
 
 
 def get_channel_suggestions(invalid_channel: str) -> str:
@@ -82,7 +68,7 @@ def es_query(
     if rescore:
         body["rescore"] = rescore
     try:
-        resp = requests.post(f"{NIXOS_API}/{index}/_search", json=body, auth=NIXOS_AUTH, timeout=10)
+        resp = HTTP.post(f"{NIXOS_API}/{index}/_search", json=body, auth=NIXOS_AUTH, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         if isinstance(data, dict) and "hits" in data:
@@ -145,7 +131,7 @@ def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> tuple[
         return cached[0], "branch_head"
 
     try:
-        resp = requests.get(
+        resp = HTTP.get(
             f"https://api.github.com/repos/NixOS/nixpkgs/commits/{branch}",
             headers={
                 "Accept": "application/vnd.github+json",
@@ -226,7 +212,8 @@ _BROWSE_DISPLAY_LIMIT = 100
 
 def _html_source_cache(source: str) -> HtmlOptionsCache:
     """Return the option catalogue cache for an HTML-parsed source."""
-    return home_manager_cache if source == "home-manager" else darwin_cache
+    caches = {"home-manager": home_manager_cache, "darwin": darwin_cache, "nixarchy": nixarchy_options_cache}
+    return caches.get(source, darwin_cache)
 
 
 def _search_html_options(cache: HtmlOptionsCache, query: str, limit: int) -> str:
@@ -244,6 +231,8 @@ def _search_html_options(cache: HtmlOptionsCache, query: str, limit: int) -> str
         if not matches:
             return f"No {cache.display_name} options found matching '{query}'"
         results = [f"Found {len(matches)} {cache.display_name} options matching '{query}':\n"]
+        if cache.origin:
+            results.insert(0, f"Source: {cache.origin}")
         for _score, opt in matches:
             results.append(f"* {opt['name']}")
             if opt["type"]:
@@ -263,10 +252,15 @@ def _info_html_options(cache: HtmlOptionsCache, name: str) -> str:
         for opt in options:
             if opt["name"] == name:
                 info = [f"Option: {name}"]
+                if cache.origin:
+                    info.append(f"Source: {cache.origin}")
                 if opt["type"]:
                     info.append(f"Type: {opt['type']}")
                 if opt["description"]:
                     info.append(f"Description: {opt['description']}")
+                for label, key in (("Default", "default"), ("Example", "example"), ("Declared in", "declared_in")):
+                    if opt.get(key):
+                        info.append(f"{label}: {opt[key]}")
                 return "\n".join(info)
 
         name_cf = name.casefold()
@@ -317,6 +311,8 @@ def _stats_html_options(cache: HtmlOptionsCache) -> str:
             f"* Total options: {len(options):,}",
             f"* Categories: {len(categories)}",
         ]
+        if cache.origin:
+            result.append(f"* Source: {cache.origin}")
         result.append("* Top categories:")
         for cat, count in top_cats:
             result.append(f"  - {cat}: {count:,}")
@@ -337,6 +333,8 @@ def _browse_options(source: str, prefix: str) -> str:
             if not matches:
                 return f"No {source_name} options found with prefix '{prefix}'"
             results = [f"{source_name} options with prefix '{prefix}' ({len(matches):,} found):\n"]
+            if cache.origin:
+                results.insert(0, f"Source: {cache.origin}")
             matches.sort(key=lambda x: x["name"])
             for opt in matches[:_BROWSE_DISPLAY_LIMIT]:
                 results.append(f"* {opt['name']}")

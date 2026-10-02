@@ -1,5 +1,5 @@
 """
-Regression tests for issue #144: mcp-nixos must start even when the CWD
+Regression tests for issue #144: mcp-nixarchy must start even when the CWD
 contains a non-UTF-8 `.env`.
 
 fastmcp's top-level import eagerly constructs a pydantic-settings `Settings()`

@@ -1,5 +1,5 @@
 {
-  description = "MCP-NixOS - Model Context Protocol server for NixOS, Home Manager, and nix-darwin";
+  description = "MCP-nixarchy - Model Context Protocol server for NixOS, Home Manager, nix-darwin and nixarchy";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,7 +22,7 @@
       # nixpkgs revisions that still ship older releases (see nix/fastmcp4.nix).
       fastmcp4Extension = import ./nix/fastmcp4.nix { inherit (nixpkgs) lib; };
 
-      mkMcpNixos =
+      mkMcpNixarchy =
         {
           pkgs,
           python3Packages ? pkgs.python3Packages,
@@ -30,7 +30,7 @@
         let
           pyproject = pkgs.lib.importTOML ./pyproject.toml;
           # Scope the fastmcp 4 upgrade to this package so consumers get a
-          # working mcp-nixos without having to upgrade `mcp`/`fastmcp` in
+          # working mcp-nixarchy without having to upgrade `mcp`/`fastmcp` in
           # their whole Python package set. The extension is a no-op when the
           # given set already carries fastmcp >= 4.
           pythonPackages = python3Packages.overrideScope fastmcp4Extension;
@@ -78,9 +78,9 @@
 
           meta = {
             inherit (pyproject.project) description;
-            homepage = "https://github.com/utensils/mcp-nixos";
+            homepage = "https://github.com/olafkfreund/mcp-nixarchy";
             license = pkgs.lib.licenses.mit;
-            mainProgram = "mcp-nixos";
+            mainProgram = "mcp-nixarchy";
           };
         };
     in
@@ -98,7 +98,7 @@
       flake = {
         # Upgrade the whole Python package set to fastmcp 4 / mcp 2 when the
         # consumer's nixpkgs still ships an older release. Only needed if you
-        # want `pkgs.python3Packages.fastmcp` itself to be 4.x; `mcp-nixos`
+        # want `pkgs.python3Packages.fastmcp` itself to be 4.x; `mcp-nixarchy`
         # below already builds against a scoped copy of this upgrade. Note
         # that this also replaces `python3Packages.mcp` (1.x -> 2.x, a major
         # API break) set-wide, so other packages depending on `mcp` may break.
@@ -110,19 +110,21 @@
         # evaluating. It now applies the fastmcp 4 upgrade above, with the
         # same set-wide `mcp` replacement, so warn loudly.
         overlays.fastmcp3 = nixpkgs.lib.warn ''
-          mcp-nixos: overlays.fastmcp3 is deprecated. Use overlays.default for
-          pkgs.mcp-nixos (self-contained), or overlays.fastmcp4 if you really
+          mcp-nixarchy: overlays.fastmcp3 is deprecated. Use overlays.default for
+          pkgs.mcp-nixarchy (self-contained), or overlays.fastmcp4 if you really
           want python3Packages.fastmcp and mcp upgraded set-wide.
         '' self.overlays.fastmcp4;
 
-        # Downstream consumers who apply `mcp-nixos.overlays.default` get
-        # `pkgs.mcp-nixos`. It carries its own fastmcp 4 stack, so nothing
+        # Downstream consumers who apply `mcp-nixarchy.overlays.default` get
+        # `pkgs.mcp-nixarchy`. It carries its own fastmcp 4 stack, so nothing
         # else in the consumer's Python package set is touched.
-        overlays.default = final: _: {
-          mcp-nixos = mkMcpNixos { pkgs = final; };
+        overlays.default = final: _: rec {
+          mcp-nixarchy = mkMcpNixarchy { pkgs = final; };
+          mcp-nixos = mcp-nixarchy; # alias, remove after v3.2
         };
 
-        lib.mkMcpNixos = mkMcpNixos;
+        lib.mkMcpNixarchy = mkMcpNixarchy;
+        lib.mkMcpNixos = mkMcpNixarchy; # alias, remove after v3.2
       };
 
       perSystem =
@@ -163,85 +165,35 @@
               pytest-xdist
             ]
           );
-
-          # Shared docs/website commands — available in both the default and
-          # `web` devshells so you can pick the right weight class (full Python
-          # + docs vs docs-only).
-          docsCommands = [
-            {
-              category = "docs";
-              name = "docs-install";
-              help = "install VitePress + theme deps (first-time setup)";
-              command = "cd \"$PRJ_ROOT/website\" && npm install \"$@\"";
-            }
-            {
-              category = "docs";
-              name = "docs-dev";
-              help = "VitePress dev server with hot reload (auto-increments port if 5173 is taken)";
-              command = ''
-                cd "$PRJ_ROOT/website"
-                [ -d node_modules ] || npm install
-                npm run dev -- "$@"
-              '';
-            }
-            {
-              category = "docs";
-              name = "docs-build";
-              help = "build the documentation site into website/out/";
-              command = ''
-                cd "$PRJ_ROOT/website"
-                [ -d node_modules ] || npm install
-                npm run build
-              '';
-            }
-            {
-              category = "docs";
-              name = "docs-preview";
-              help = "serve the built docs site (auto-increments port if 4173 is taken)";
-              command = "cd \"$PRJ_ROOT/website\" && npm run preview -- \"$@\"";
-            }
-            {
-              category = "docs";
-              name = "docs-check";
-              help = "type-check Vue components with vue-tsc";
-              command = "cd \"$PRJ_ROOT/website\" && npm run check -- \"$@\"";
-            }
-            {
-              category = "docs";
-              name = "docs-clean";
-              help = "remove VitePress build + cache artifacts";
-              command = "rm -rf \"$PRJ_ROOT/website/.vitepress/cache\" \"$PRJ_ROOT/website/.vitepress/dist\" \"$PRJ_ROOT/website/out\"";
-            }
-          ];
         in
         {
           # Guards nix/fastmcp4.nix: fail loudly if the package this flake builds,
           # the overlay-applied package set, or the consumer path (a vanilla
           # nixpkgs with only `overlays.default`) fell back to fastmcp < 4 or to a
           # starlette below the CVE-2026-48710 floor. The consumer path is what
-          # downstream flakes get, and `packages.mcp-nixos` above cannot cover it
+          # downstream flakes get, and `packages.mcp-nixarchy` above cannot cover it
           # because `pkgs` there already carries `overlays.fastmcp4`.
           checks.fastmcp4-overlay =
             let
               inherit (pkgs) lib;
-              scoped = self.packages.${system}.mcp-nixos.pythonPackages.fastmcp.version;
+              scoped = self.packages.${system}.mcp-nixarchy.pythonPackages.fastmcp.version;
               global = pkgs.python3Packages.fastmcp.version;
               bare = import nixpkgs { inherit system; };
               vanilla = import nixpkgs {
                 inherit system;
                 overlays = [ self.overlays.default ];
               };
-              consumer = vanilla.mcp-nixos;
+              consumer = vanilla.mcp-nixarchy;
               consumerFastmcp = consumer.pythonPackages.fastmcp.version;
               consumerStarlette = consumer.pythonPackages.starlette.version;
               ok = v: lib.versionAtLeast v "4";
             in
-            assert lib.assertMsg (ok scoped) "mcp-nixos builds against fastmcp ${scoped}, expected >= 4";
+            assert lib.assertMsg (ok scoped) "mcp-nixarchy builds against fastmcp ${scoped}, expected >= 4";
             assert lib.assertMsg (ok global) "overlays.fastmcp4 yielded fastmcp ${global}, expected >= 4";
             assert lib.assertMsg (ok consumerFastmcp)
-              "overlays.default builds mcp-nixos against fastmcp ${consumerFastmcp}, expected >= 4";
+              "overlays.default builds mcp-nixarchy against fastmcp ${consumerFastmcp}, expected >= 4";
             assert lib.assertMsg (lib.versionAtLeast consumerStarlette "1.0.1")
-              "overlays.default builds mcp-nixos against starlette ${consumerStarlette}, expected >= 1.0.1";
+              "overlays.default builds mcp-nixarchy against starlette ${consumerStarlette}, expected >= 1.0.1";
             assert lib.assertMsg (
               vanilla.python3Packages.fastmcp.drvPath == bare.python3Packages.fastmcp.drvPath
             ) "overlays.default must not replace python3Packages.fastmcp in the consumer's package set";
@@ -251,55 +203,35 @@
             '';
 
           packages = rec {
-            mcp-nixos = mkMcpNixos { inherit pkgs; };
-            default = mcp-nixos;
-
-            docker = pkgs.dockerTools.buildLayeredImage {
-              name = "ghcr.io/utensils/mcp-nixos";
-              tag = mcp-nixos.version;
-              # Format: YYYYMMDDHHMMSS -> YYYY-MM-DDTHH:MM:SSZ
-              created =
-                let
-                  d = self.lastModifiedDate;
-                in
-                "${builtins.substring 0 4 d}-${builtins.substring 4 2 d}-${builtins.substring 6 2 d}T${builtins.substring 8 2 d}:${builtins.substring 10 2 d}:${builtins.substring 12 2 d}Z";
-              contents = [
-                mcp-nixos
-                pkgs.cacert
-              ];
-              config = {
-                Entrypoint = [ (pkgs.lib.getExe mcp-nixos) ];
-                Env = [
-                  "SSL_CERT_FILE=${pkgs.cacert}/etc/ssl/certs/ca-bundle.crt"
-                ];
-              };
-            };
+            mcp-nixarchy = mkMcpNixarchy { inherit pkgs; };
+            mcp-nixos = mcp-nixarchy; # alias, remove after v3.2
+            default = mcp-nixarchy;
           };
 
           apps = rec {
-            mcp-nixos = {
+            mcp-nixarchy = {
               type = "app";
-              program = pkgs.lib.getExe self.packages.${system}.mcp-nixos;
-              meta.description = "MCP server for NixOS, Home Manager, and nix-darwin";
+              program = pkgs.lib.getExe self.packages.${system}.mcp-nixarchy;
+              meta.description = "MCP server for NixOS, Home Manager, nix-darwin and nixarchy";
             };
-            default = mcp-nixos;
+            mcp-nixos = mcp-nixarchy; # alias, remove after v3.2
+            default = mcp-nixarchy;
           };
 
           formatter = pkgs.nixfmt-rfc-style;
 
-          # Default dev shell — Python backend + docs tooling in one place.
+          # Default dev shell — Python backend tooling in one place.
           # Enter with: `nix develop`
           devshells.default = {
-            name = "mcp-nixos";
+            name = "mcp-nixarchy";
 
             motd = ''
-              {202}mcp-nixos{reset} — Model Context Protocol server for NixOS ({bold}${system}{reset})
+              {202}mcp-nixarchy{reset} — Model Context Protocol server for NixOS ({bold}${system}{reset})
               $(type menu &>/dev/null && menu)
             '';
 
             packages = [
               pythonEnv
-              pkgs.nodejs_20
               pkgs.git
               pkgs.gh
               pkgs.jq
@@ -312,7 +244,7 @@
                 category = "run";
                 name = "run";
                 help = "start the MCP server over STDIO";
-                command = "mcp-nixos \"$@\"";
+                command = "mcp-nixarchy \"$@\"";
               }
               {
                 category = "run";
@@ -322,7 +254,7 @@
                   MCP_NIXOS_TRANSPORT=http \
                     MCP_NIXOS_HOST="''${MCP_NIXOS_HOST:-127.0.0.1}" \
                     MCP_NIXOS_PORT="''${MCP_NIXOS_PORT:-8000}" \
-                    mcp-nixos "$@"
+                    mcp-nixarchy "$@"
                 '';
               }
 
@@ -404,33 +336,7 @@
                 help = "nix build — full flake build (matches CI)";
                 command = "cd \"$PRJ_ROOT\" && nix build \"$@\"";
               }
-              {
-                category = "build";
-                name = "build-docker";
-                help = "nix build .#docker — build the multi-arch Docker image";
-                command = "cd \"$PRJ_ROOT\" && nix build .#docker \"$@\"";
-              }
-            ]
-            ++ docsCommands;
-          };
-
-          # Lightweight docs-only dev shell — just Node + VitePress helpers.
-          # Enter with: `nix develop .#web`
-          devshells.web = {
-            name = "mcp-nixos-website";
-
-            motd = ''
-              {202}mcp-nixos-website{reset} — VitePress docs ({bold}${system}{reset})
-              $(type menu &>/dev/null && menu)
-            '';
-
-            packages = with pkgs; [
-              nodejs_20
-              git
-              jq
             ];
-
-            commands = docsCommands;
           };
         };
     };

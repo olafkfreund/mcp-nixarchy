@@ -1,4 +1,6 @@
-"""Configuration constants and exception classes for MCP-NixOS server."""
+"""Configuration constants and exception classes for MCP-nixarchy server."""
+
+import os
 
 from . import __version__
 
@@ -12,15 +14,8 @@ class DocumentParseError(Exception):
 
 
 # API Configuration
-NIXOS_API = "https://search.nixos.org/backend"
+NIXOS_API = os.environ.get("ELASTICSEARCH_URL", "https://search.nixos.org/backend").rstrip("/")
 NIXOS_AUTH = ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
-
-# Base channel patterns - these are dynamic and auto-discovered
-BASE_CHANNELS = {
-    "unstable": "nixos-unstable",
-    "25.05": "nixos-25.05",
-    "25.11": "nixos-25.11",
-}
 
 # Fallback channels when API discovery fails (static mappings based on recent patterns)
 # Last-resort channel map, used only when alias discovery fails outright.
@@ -47,7 +42,7 @@ FLAKE_INDEX = "latest-51-group-manual"
 
 # FlakeHub API (Determinate Systems)
 FLAKEHUB_API = "https://api.flakehub.com"
-FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
+FLAKEHUB_USER_AGENT = f"mcp-nixarchy/{__version__}"
 
 # Nixvim options via NuschtOS search infrastructure.
 # Layout (reorganized mid-2026; old `…/search/meta/N.json` path was removed):
@@ -58,11 +53,16 @@ FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
 # approximately 60 chunks / 17,000 options and fits comfortably in memory.
 # Credit: https://github.com/NuschtOS/search - Simple and fast static-page NixOS option search
 NIXVIM_OPTIONS_CHUNKS_BASE = "https://nix-community.github.io/nixvim/search/data/options/chunks"
-# Kept for backward compatibility / potential scope lookups; not used by the chunked loader.
-NIXVIM_META_BASE = "https://nix-community.github.io/nixvim/search/data"
 
-# NVF options from the latest published (unstable) documentation.
-NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"
+# NVF options from the latest published (unstable) documentation. options.html became a short
+# overview page in late 2026; the full catalogue lives in options-full.html.
+NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options-full.html"
+
+# nixarchy options catalogue and manual: installed copy first, GitHub as the fallback.
+NIXARCHY_OPTIONS_PATH = "/etc/nixarchy/options.json"
+NIXARCHY_OPTIONS_URL = "https://github.com/olafkfreund/nixarchy/releases/latest/download/options.json"
+NIXARCHY_DOCS_PATH = "/etc/nixarchy/docs"
+NIXARCHY_REPO = "olafkfreund/nixarchy"
 
 # NixOS Wiki (MediaWiki API)
 WIKI_API = "https://wiki.nixos.org/w/api.php"
@@ -97,4 +97,6 @@ KNOWN_SOURCES = {
     "nix-dev",
     "noogle",
     "nixhub",
+    "nixarchy",
+    "nixarchy-docs",
 }

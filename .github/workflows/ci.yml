@@ -6,7 +6,6 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'website/**'
       - '.github/*.md'
       - 'LICENSE'
       - '.gitignore'
@@ -18,7 +17,6 @@ on:
     paths-ignore:
       - '**.md'
       - 'docs/**'
-      - 'website/**'
       - '.github/*.md'
       - 'LICENSE'
       - '.gitignore'
@@ -67,7 +65,7 @@ jobs:
 
     - name: Test package runs
       run: |
-        timeout 5s ./result/bin/mcp-nixos --help || true
+        timeout 5s ./result/bin/mcp-nixarchy --help || true
 
     - name: Build Python distribution
       run: |
@@ -122,35 +120,8 @@ jobs:
       uses: codecov/codecov-action@v6
       with:
         token: ${{ secrets.CODECOV_TOKEN }}
-        slug: utensils/mcp-nixos
+        slug: olafkfreund/mcp-nixarchy
         files: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
         fail_ci_if_error: false
-
-  # Verify the release image still builds on both supported Linux architectures.
-  docker-build:
-    runs-on: ${{ matrix.runner }}
-    needs: [build, lint, test]
-    strategy:
-      matrix:
-        include:
-          - runner: ubuntu-latest
-            arch: amd64
-            system: x86_64-linux
-          - runner: ubuntu-24.04-arm
-            arch: arm64
-            system: aarch64-linux
-    steps:
-    - uses: actions/checkout@v6
-
-    - name: Install Nix
-      uses: cachix/install-nix-action@v31
-      with:
-        nix_path: nixpkgs=channel:nixos-unstable
-        extra_nix_config: |
-          experimental-features = nix-command flakes
-          accept-flake-config = true
-
-    - name: Build Docker image with Nix
-      run: nix build .#packages.${{ matrix.system }}.docker
