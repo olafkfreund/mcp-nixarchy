@@ -342,7 +342,7 @@ class NixvimCache:
                 return self.options
             if self._failed_at is not None and self._failure is not None:
                 if time.monotonic() - self._failed_at < _FAILURE_COOLDOWN:
-                    raise self._failure
+                    raise APIError(str(self._failure))
             try:
                 self.options = self._fetch()
             except APIError as exc:
@@ -541,6 +541,23 @@ home_manager_cache = HtmlOptionsCache(HOME_MANAGER_URL, "Home Manager")
 darwin_cache = HtmlOptionsCache(DARWIN_URL, "nix-darwin")
 
 
+def _option_text(value: Any) -> str:
+    """Render a nixosOptionsDoc default/example: {_type, text} today, a raw value in older output."""
+    if value is None:
+        return ""
+    if isinstance(value, dict):
+        return str(value.get("text", ""))
+    return json.dumps(value)
+
+
+def _declarations(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, list):
+        return ", ".join(str(d) for d in value)
+    return ""
+
+
 class NixarchyOptionsCache(HtmlOptionsCache):
     """nixarchy module options from an options.json (installed copy, env override, or GitHub release)."""
 
@@ -567,6 +584,8 @@ class NixarchyOptionsCache(HtmlOptionsCache):
                     raw = json.load(f)
             options = []
             for name, v in raw.items():
+                if not isinstance(v, dict):
+                    continue
                 desc = v.get("description", "")
                 if isinstance(desc, dict):  # older nixosOptionsDoc: {"_type": "mdDoc", "text": ...}
                     desc = desc.get("text", "")
@@ -575,9 +594,9 @@ class NixarchyOptionsCache(HtmlOptionsCache):
                         "name": name,
                         "type": str(v.get("type", "")),
                         "description": (desc if isinstance(desc, str) else str(desc)).strip(),
-                        "default": str((v.get("default") or {}).get("text", "")),
-                        "example": str((v.get("example") or {}).get("text", "")),
-                        "declared_in": ", ".join(str(d) for d in v.get("declarations", [])),
+                        "default": _option_text(v.get("default")),
+                        "example": _option_text(v.get("example")),
+                        "declared_in": _declarations(v.get("declarations")),
                     }
                 )
         except Exception as exc:

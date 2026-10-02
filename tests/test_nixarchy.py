@@ -110,6 +110,31 @@ def test_installed_path_then_github_fallback(monkeypatch):
 
 
 @pytest.mark.unit
+def test_older_raw_values_and_bad_entries(monkeypatch, tmp_path):
+    path = tmp_path / "old.json"
+    path.write_text(
+        json.dumps(
+            {
+                "programs.nixarchy.voice": {
+                    "type": "boolean",
+                    "description": {"_type": "mdDoc", "text": "Voice input."},
+                    "default": True,
+                    "example": ["a", "b"],
+                    "declarations": "modules/nixos.nix",
+                },
+                "broken": "not an option object",
+            }
+        )
+    )
+    monkeypatch.setenv("MCP_NIXARCHY_OPTIONS", str(path))
+    result = _info_nixarchy_options("programs.nixarchy.voice")
+    assert "Description: Voice input." in result
+    assert "Default: true" in result
+    assert 'Example: ["a", "b"]' in result
+    assert "Declared in: modules/nixos.nix" in result
+
+
+@pytest.mark.unit
 def test_missing_path_not_available(monkeypatch, tmp_path):
     monkeypatch.setenv("MCP_NIXARCHY_OPTIONS", str(tmp_path / "missing.json"))
     assert "not available" in _search_nixarchy_options("nixarchy", 5)

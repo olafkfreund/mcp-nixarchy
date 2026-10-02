@@ -319,6 +319,14 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 - A fresh `opus` agent reviews, given only this plan path and `git diff main...HEAD`.
 - Fix its findings, and update this plan for any deviation in the same commit.
 
+- Review outcome (2026-10-02): no blocking defects, and the diff follows the plan. Fixed in one commit:
+  - `Retry` gets `read=0`, so a read timeout is not retried three times and still raises `Timeout`.
+  - `Retry` gets `respect_retry_after_header=False`, so an upstream `Retry-After` cannot park a worker that holds a cache lock.
+  - The nixarchy options loader accepts raw `default`/`example` values and string `declarations` (older nixosOptionsDoc output), and skips entries that are not objects.
+  - The flake-inputs root check runs before `isdir`, so the error never reveals whether a path outside the roots exists.
+  - The Nixvim cooldown raises a fresh `APIError` instead of re-raising the stored one, whose traceback grew.
+  - Not done, and noted as a follow-up in the PR: a failure cooldown for the nixarchy loaders. It is not required by the spec.
+
 **19. PR**
 - `git push -u origin feat/1-mcp-nixarchy`.
 - `gh pr create --base main` (the fork's main, not upstream).
