@@ -233,3 +233,28 @@ def test_noogle_cache_serializes_first_load():
     resp = MagicMock()
     resp.json.return_value = {"data": [], "builtinTypes": {}}
     assert _concurrent_first_load(NoogleCache().get_data, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_nixvim_cache_failure_cooldown():
+    import requests
+    from mcp_nixos.caches import APIError, NixvimCache  # caches' own binding survives config reloads
+
+    cache = NixvimCache()
+    with (
+        patch("mcp_nixos.caches.time.monotonic", return_value=1000.0),
+        patch("mcp_nixos.caches.HTTP.get", side_effect=requests.Timeout) as get,
+    ):
+        with pytest.raises(APIError):
+            cache.get_options()
+        with pytest.raises(APIError):
+            cache.get_options()
+        assert get.call_count == 1
+
+    with (
+        patch("mcp_nixos.caches.time.monotonic", return_value=1061.0),
+        patch("mcp_nixos.caches.HTTP.get", side_effect=requests.Timeout) as get,
+    ):
+        with pytest.raises(APIError):
+            cache.get_options()
+        assert get.call_count == 1
