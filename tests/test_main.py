@@ -254,3 +254,23 @@ def test_nixvim_cache_failure_cooldown():
         with pytest.raises(APIError):
             cache.get_options()
         assert get.call_count == 1
+
+
+@pytest.mark.unit
+def test_stats_nixos_reports_failed_count_as_unavailable():
+    from unittest.mock import MagicMock
+
+    import requests
+    from mcp_nixos.sources.nixos import _stats_nixos
+
+    ok = MagicMock()
+    ok.json.return_value = {"count": 1234}
+    bad = MagicMock()
+    bad.raise_for_status.side_effect = requests.HTTPError("500")
+    with (
+        patch("mcp_nixos.sources.nixos.get_channels", return_value={"unstable": "idx"}),
+        patch("mcp_nixos.sources.nixos.HTTP.post", side_effect=[ok, bad]),
+    ):
+        result = _stats_nixos("unstable")
+    assert "Packages: 1,234" in result
+    assert "Options: unavailable" in result
