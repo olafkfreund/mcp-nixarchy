@@ -131,7 +131,7 @@ class TestNixInfoIntegration:
             source="nvf",
         )
         assert "NVF Option: vim.languages.nix.enable" in result
-        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
+        assert "Documentation: https://nvf.notashelf.dev/options-full.html#option-vim.languages.nix.enable" in result
         assert_plain_text(result)
 
     @pytest.mark.asyncio
