@@ -19,8 +19,10 @@ from .config import (
     FALLBACK_CHANNELS,
     FLAKE_INDEX,
     HOME_MANAGER_URL,
+    NIXARCHY_DOCS_PATH,
     NIXARCHY_OPTIONS_PATH,
     NIXARCHY_OPTIONS_URL,
+    NIXARCHY_REPO,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
     NIXOS_AUTH,
@@ -588,6 +590,84 @@ class NixarchyOptionsCache(HtmlOptionsCache):
 
 
 nixarchy_options_cache = NixarchyOptionsCache()
+
+
+class NixarchyDocsCache:
+    """The nixarchy manual: markdown pages from a local directory, else from GitHub."""
+
+    def __init__(self) -> None:
+        self.pages: dict[str, tuple[str, str]] | None = None  # id -> (title, markdown)
+        self.origin = ""
+        self._init_lock = threading.Lock()
+
+    @staticmethod
+    def _add(pages: dict[str, tuple[str, str]], page_id: str, text: str) -> None:
+        title = next((line[2:].strip() for line in text.splitlines() if line.startswith("# ")), page_id)
+        pages[page_id] = (title, text)
+
+    def _load_dir(self, root: str) -> dict[str, tuple[str, str]]:
+        pages: dict[str, tuple[str, str]] = {}
+        manual = os.path.join(root, "manual")
+        for name in sorted(os.listdir(manual)) if os.path.isdir(manual) else []:
+            if name.endswith(".md"):
+                with open(os.path.join(manual, name), encoding="utf-8") as f:
+                    self._add(pages, name[:-3], f.read())
+        llms = os.path.join(root, "llms.txt")
+        if os.path.isfile(llms):
+            with open(llms, encoding="utf-8") as f:
+                self._add(pages, "llms", f.read())
+        return pages
+
+    def _load_github(self) -> dict[str, tuple[str, str]]:
+        pages: dict[str, tuple[str, str]] = {}
+        resp = HTTP.get(f"https://api.github.com/repos/{NIXARCHY_REPO}/contents/docs/manual", timeout=30)
+        resp.raise_for_status()
+        for entry in resp.json():
+            if not str(entry.get("name", "")).endswith(".md") or not entry.get("download_url"):
+                continue
+            try:
+                page = HTTP.get(entry["download_url"], timeout=30)
+                page.raise_for_status()
+            except requests.RequestException:
+                continue  # one broken page must not hide the rest of the manual
+            self._add(pages, entry["name"][:-3], page.text)
+        try:
+            llms = HTTP.get(f"https://raw.githubusercontent.com/{NIXARCHY_REPO}/main/docs/llms.txt", timeout=30)
+            llms.raise_for_status()
+            self._add(pages, "llms", llms.text)
+        except requests.RequestException:
+            pass  # llms.txt is optional
+        return pages
+
+    def get_pages(self) -> dict[str, tuple[str, str]]:
+        """Load and cache the manual pages; the origin says where they came from."""
+        if self.pages is not None:
+            return self.pages
+
+        with self._init_lock:
+            if self.pages is not None:
+                return self.pages
+
+            override = os.environ.get("MCP_NIXARCHY_DOCS")
+            try:
+                if override:
+                    pages, origin = self._load_dir(override), f"custom ({override})"
+                elif os.path.isdir(NIXARCHY_DOCS_PATH):
+                    pages, origin = self._load_dir(NIXARCHY_DOCS_PATH), f"installed ({NIXARCHY_DOCS_PATH})"
+                else:
+                    pages = self._load_github()
+                    origin = f"GitHub {NIXARCHY_REPO} (may differ from your installed nixarchy)"
+            except Exception as exc:
+                raise APIError(f"nixarchy manual not available: {exc}") from exc
+            if not pages:
+                raise APIError(f"nixarchy manual not available: no pages found in {origin}")
+
+            self.pages = pages
+            self.origin = origin
+            return self.pages
+
+
+nixarchy_docs_cache = NixarchyDocsCache()
 
 
 class NixDevCache:

@@ -1,12 +1,19 @@
-"""Tests for the nixarchy options source."""
+"""Tests for the nixarchy options and manual sources."""
 
 import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from mcp_nixos.caches import nixarchy_options_cache
+import requests
+from mcp_nixos.caches import nixarchy_docs_cache, nixarchy_options_cache
 from mcp_nixos.sources.base import _browse_options
-from mcp_nixos.sources.nixarchy import _info_nixarchy_options, _search_nixarchy_options, _stats_nixarchy_options
+from mcp_nixos.sources.nixarchy import (
+    _info_nixarchy_docs,
+    _info_nixarchy_options,
+    _search_nixarchy_docs,
+    _search_nixarchy_options,
+    _stats_nixarchy_options,
+)
 
 OPTIONS = {
     "programs.nixarchy.enable": {
@@ -105,3 +112,91 @@ def test_installed_path_then_github_fallback(monkeypatch):
 def test_missing_path_not_available(monkeypatch, tmp_path):
     monkeypatch.setenv("MCP_NIXARCHY_OPTIONS", str(tmp_path / "missing.json"))
     assert "not available" in _search_nixarchy_options("nixarchy", 5)
+
+
+@pytest.fixture
+def docs_dir(tmp_path, monkeypatch):
+    manual = tmp_path / "docs" / "manual"
+    manual.mkdir(parents=True)
+    (manual / "ai.md").write_text("# AI assistants\n\nnixarchy ships an MCP server for assistants.\n")
+    (manual / "gaming.md").write_text("# Gaming\n\nSteam and friends. One mention of mcp here.\n")
+    (manual / "big.md").write_text("# Big page\n" + "\n".join(f"line {i}" for i in range(600)))
+    (tmp_path / "docs" / "llms.txt").write_text("# nixarchy\n\nIndex of the manual.\n")
+    monkeypatch.setenv("MCP_NIXARCHY_DOCS", str(tmp_path / "docs"))
+    nixarchy_docs_cache.pages = None
+    yield tmp_path / "docs"
+    nixarchy_docs_cache.pages = None
+    nixarchy_docs_cache.origin = ""
+
+
+@pytest.mark.unit
+def test_docs_search_ranks_title_hit_first(docs_dir):
+    result = _search_nixarchy_docs("ai", 5)
+    assert f"Source: custom ({docs_dir})" in result
+    assert "* ai — AI assistants" in result
+    mcp = _search_nixarchy_docs("mcp", 5)
+    assert mcp.index("* ai —") < mcp.index("* gaming —")
+    assert "No nixarchy manual pages" in _search_nixarchy_docs("zzzzz", 5)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("page", ["ai", "manual/ai.md", "ai.md", "docs/manual/ai"])
+def test_docs_info_normalises_id(docs_dir, page):
+    assert "nixarchy ships an MCP server" in _info_nixarchy_docs(page)
+
+
+@pytest.mark.unit
+def test_docs_info_truncates_and_suggests(docs_dir):
+    big = _info_nixarchy_docs("big")
+    assert "... truncated (101 more lines)" in big
+    missing = _info_nixarchy_docs("gam")
+    assert "NOT_FOUND" in missing
+    assert "gaming" in missing
+    assert "Index of the manual" in _info_nixarchy_docs("llms")
+
+
+@pytest.mark.unit
+def test_docs_github_fallback(monkeypatch):
+    monkeypatch.delenv("MCP_NIXARCHY_DOCS", raising=False)
+    nixarchy_docs_cache.pages = None
+    listing = MagicMock()
+    listing.json.return_value = [
+        {"name": "ai.md", "download_url": "https://raw.test/ai.md"},
+        {"name": "gaming.md", "download_url": "https://raw.test/gaming.md"},
+        {"name": "img", "download_url": None},
+    ]
+    texts = {"https://raw.test/ai.md": "# AI\nmcp", "https://raw.test/gaming.md": "# Gaming\nsteam"}
+
+    def fake_get(url, **_kw):
+        if url.endswith("/contents/docs/manual"):
+            return listing
+        if url in texts:
+            return MagicMock(text=texts[url])
+        raise requests.ConnectionError("no llms.txt")
+
+    try:
+        with (
+            patch("mcp_nixos.caches.os.path.isdir", return_value=False),
+            patch("mcp_nixos.caches.HTTP.get", side_effect=fake_get),
+        ):
+            result = _search_nixarchy_docs("mcp", 5)
+        assert "* ai — AI" in result
+        assert "GitHub olafkfreund/nixarchy" in result
+        assert sorted(nixarchy_docs_cache.pages or {}) == ["ai", "gaming"]
+    finally:
+        nixarchy_docs_cache.pages = None
+        nixarchy_docs_cache.origin = ""
+
+
+@pytest.mark.integration
+@pytest.mark.flaky(reruns=3)
+def test_nixarchy_docs_github_search_finds_ai_page(monkeypatch):
+    monkeypatch.delenv("MCP_NIXARCHY_DOCS", raising=False)
+    nixarchy_docs_cache.pages = None
+    try:
+        with patch("mcp_nixos.caches.os.path.isdir", return_value=False):
+            result = _search_nixarchy_docs("mcp", 10)
+        assert "* ai —" in result
+    finally:
+        nixarchy_docs_cache.pages = None
+        nixarchy_docs_cache.origin = ""

@@ -275,6 +275,10 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
   - A GitHub fallback with `HTTP.get` mocked returns 2 pages.
 - Tests (integration): `MCP_NIXARCHY_DOCS` unset and `/etc/nixarchy/docs` absent (patch `os.path.isdir` for that path), then search for "mcp" → the `ai` page is in the results. Mark it `flaky(reruns=3)`.
 - Verify: CHECK, plus `pytest -m integration -k nixarchy_docs`.
+- (Deviation, found in implementation:)
+  - In the GitHub fallback, a page that fails to download is skipped, and `llms.txt` is optional.
+  - A set `MCP_NIXARCHY_DOCS` is always treated as the directory, so a bad path reports "not available" rather than falling back.
+  - The fallback fetches pages sequentially, about 8 s on first use, and the result is cached for the process.
 - Commit: `feat: add nixarchy-docs source for the nixarchy manual (#1)`.
 
 **16. C wiring: `server.py`, `config.py` `KNOWN_SOURCES`, `sources/__init__.py`**
