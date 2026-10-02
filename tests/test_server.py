@@ -16,7 +16,6 @@ from mcp_nixos.server import (
     get_channel_suggestions,
     get_channels,
     parse_html_options,
-    validate_channel,
 )
 
 
@@ -664,25 +663,6 @@ class TestChannelCache:
 @pytest.mark.unit
 class TestChannelValidation:
     """Test channel validation helpers."""
-
-    @patch("mcp_nixos.sources.base.HTTP.post")
-    @patch("mcp_nixos.sources.base.get_channels")
-    def test_valid_channel(self, mock_get_channels, mock_post):
-        mock_get_channels.return_value = {"stable": "latest-44-nixos-25.11"}
-        mock_post.return_value.status_code = 200
-        mock_post.return_value.json.return_value = {"count": 100}
-        result = validate_channel("stable")
-        assert result is True
-
-    @patch("mcp_nixos.sources.base.get_channels")
-    def test_invalid_channel(self, mock_get_channels):
-        mock_get_channels.return_value = {"stable": "latest-44-nixos-25.11"}
-        result = validate_channel("nonexistent")
-        assert result is False
-
-    def test_special_characters(self):
-        result = validate_channel("invalid<>channel")
-        assert result is False
 
     def test_suggestions(self):
         result = get_channel_suggestions("unstabel")

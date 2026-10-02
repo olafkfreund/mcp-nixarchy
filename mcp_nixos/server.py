@@ -38,7 +38,6 @@ from .caches import (
     nvf_cache,
 )
 from .config import (
-    BASE_CHANNELS,
     CACHE_NIXOS_ORG,
     DARWIN_URL,
     DEFAULT_LINE_LIMIT,
@@ -55,7 +54,6 @@ from .config import (
     NIXHUB_API,
     NIXOS_API,
     NIXOS_AUTH,
-    NIXVIM_META_BASE,
     NOOGLE_API,
     NVF_OPTIONS_URL,
     WIKI_API,
@@ -135,7 +133,6 @@ from .sources import (
     es_query,
     get_channel_suggestions,
     get_channels,
-    validate_channel,
 )
 from .utils import (
     NarInfo,
@@ -660,14 +657,12 @@ __all__ = [
     # Config constants
     "NIXOS_API",
     "NIXOS_AUTH",
-    "BASE_CHANNELS",
     "FALLBACK_CHANNELS",
     "HOME_MANAGER_URL",
     "DARWIN_URL",
     "FLAKE_INDEX",
     "FLAKEHUB_API",
     "FLAKEHUB_USER_AGENT",
-    "NIXVIM_META_BASE",
     "NVF_OPTIONS_URL",
     "WIKI_API",
     "NIXDEV_SEARCH_INDEX",
@@ -708,7 +703,6 @@ __all__ = [
     "_check_nix_available",
     # Channel functions
     "get_channels",
-    "validate_channel",
     "get_channel_suggestions",
     "es_query",
     # NixOS functions

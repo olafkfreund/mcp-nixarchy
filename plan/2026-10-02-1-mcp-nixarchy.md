@@ -38,7 +38,7 @@ spec: spec/2026-10-02-1-mcp-nixarchy.md
 - Tests use `@pytest.mark.unit` or `@pytest.mark.integration`.
 - Integration tests hit real APIs. Mark flaky ones `@pytest.mark.flaky(reruns=3)`.
 - Run everything inside `nix develop -c …`.
-- The unit suite baseline is 381 passed. It must not drop, except for the 4 `validate_channel` tests deleted in step 8.
+- The unit suite baseline is 381 passed. It must not drop, except for the 3 `validate_channel` tests deleted in step 8.
 - Commit message format is `type: summary (#1)` with the session trailers. Commit once per step unless a step says otherwise.
 - Shell cwd resets between Bash calls. Use absolute paths, or `cd` inside the same command.
 
@@ -138,7 +138,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 - `sources/__init__.py`: remove it from the import and from `__all__`.
 - `server.py`: remove it from the imports (138) and from the re-export list (695). Remove `BASE_CHANNELS` (41, 647) and `NIXVIM_META_BASE` (58, 654).
 - `config.py`: delete `BASE_CHANNELS` and `NIXVIM_META_BASE`, including its comment.
-- `tests/test_server.py:19, 674-686`: remove the import and the 4 tests.
+- `tests/test_server.py:19, 674-686`: remove the import and the 3 tests that call `validate_channel` (deviation: the plan said 4; `test_suggestions` covers `get_channel_suggestions` and stays).
 - Verify: CHECK, then `grep -rn "validate_channel\|BASE_CHANNELS\|NIXVIM_META_BASE" mcp_nixos tests` returns nothing.
 - Commit: `refactor: remove unused validate_channel and dead config constants (#1)`.
 
@@ -315,7 +315,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 
 ## Tests
 
-- **Per step:** CHECK (ruff, format, mypy, unit). Expect 0 lint or type errors, and the unit test count to be ≥ 377 + new tests.
+- **Per step:** CHECK (ruff, format, mypy, unit). Expect 0 lint or type errors, and the unit test count to be ≥ 378 + new tests.
 - **Integration:** `pytest -m integration -k nixarchy_docs` is green. The full integration run has no new failures compared with `main`.
 - **Nix:** `nix flake check`, and `nix build .#mcp-nixarchy .#mcp-nixos`, with both binaries present.
 - **Smoke:** step 16's command returns the `ai` page first. `result/bin/mcp-nixarchy` starts and responds to `initialize` over stdio:
