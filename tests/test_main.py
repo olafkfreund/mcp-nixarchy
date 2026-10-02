@@ -177,3 +177,10 @@ def test_elasticsearch_url_env_override(monkeypatch):
         monkeypatch.delenv("ELASTICSEARCH_URL")
         importlib.reload(config)
     assert config.NIXOS_API == "https://search.nixos.org/backend"
+
+
+@pytest.mark.unit
+def test_http_session_retries():
+    from mcp_nixos.utils import HTTP
+
+    assert HTTP.get_adapter("https://x").max_retries.total == 2

@@ -13,7 +13,7 @@ from ..config import (
     NIXOS_AUTH,
     APIError,
 )
-from ..utils import error, score_option_match
+from ..utils import HTTP, error, score_option_match
 
 # Match the 40-char hex commit appended to unstable ES indices,
 # e.g. `nixos-46-unstable-b12141ef619e0a9c1c84dc8c684040326f27cdcc`.
@@ -43,7 +43,7 @@ def validate_channel(channel: str) -> bool:
     if channel in channels:
         index = channels[channel]
         try:
-            resp = requests.post(
+            resp = HTTP.post(
                 f"{NIXOS_API}/{index}/_count", json={"query": {"match_all": {}}}, auth=NIXOS_AUTH, timeout=5
             )
             return resp.status_code == 200 and resp.json().get("count", 0) > 0
@@ -82,7 +82,7 @@ def es_query(
     if rescore:
         body["rescore"] = rescore
     try:
-        resp = requests.post(f"{NIXOS_API}/{index}/_search", json=body, auth=NIXOS_AUTH, timeout=10)
+        resp = HTTP.post(f"{NIXOS_API}/{index}/_search", json=body, auth=NIXOS_AUTH, timeout=10)
         resp.raise_for_status()
         data = resp.json()
         if isinstance(data, dict) and "hits" in data:
@@ -145,7 +145,7 @@ def _channel_revision(name: str, index: str, resolved: dict[str, str]) -> tuple[
         return cached[0], "branch_head"
 
     try:
-        resp = requests.get(
+        resp = HTTP.get(
             f"https://api.github.com/repos/NixOS/nixpkgs/commits/{branch}",
             headers={
                 "Accept": "application/vnd.github+json",

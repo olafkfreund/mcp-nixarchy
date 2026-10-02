@@ -26,7 +26,7 @@ from .config import (
     NVF_OPTIONS_URL,
     APIError,
 )
-from .utils import parse_html_options
+from .utils import HTTP, parse_html_options
 
 if TYPE_CHECKING:
     from .sources.nvf import NvfOption
@@ -175,7 +175,7 @@ class ChannelCache:
         picked up automatically instead of bit-rotting in the source.
         """
         try:
-            resp = requests.get(
+            resp = HTTP.get(
                 f"{NIXOS_API}/_cat/aliases?format=json",
                 auth=NIXOS_AUTH,
                 timeout=10,
@@ -213,7 +213,7 @@ class ChannelCache:
         complete = bool(aliases)
         for alias in aliases:
             try:
-                count_resp = requests.post(
+                count_resp = HTTP.post(
                     f"{NIXOS_API}/{alias}/_count",
                     json={"query": {"match_all": {}}},
                     auth=NIXOS_AUTH,
@@ -336,7 +336,7 @@ class NixvimCache:
             try:
                 while True:
                     url = f"{NIXVIM_OPTIONS_CHUNKS_BASE}/{chunk_id}.json"
-                    resp = requests.get(url, timeout=30)
+                    resp = HTTP.get(url, timeout=30)
 
                     if resp.status_code == 404:
                         # Treat as end-of-pagination — but a 404 on the *first*
@@ -452,7 +452,7 @@ class NvfCache:
             return self.options
 
         try:
-            response = requests.get(NVF_OPTIONS_URL, timeout=30)
+            response = HTTP.get(NVF_OPTIONS_URL, timeout=30)
             response.raise_for_status()
             options = self._parse_options(response.content)
             if not options:
@@ -521,7 +521,7 @@ class NixDevCache:
             return self.index
 
         try:
-            resp = requests.get(NIXDEV_SEARCH_INDEX, timeout=30)
+            resp = HTTP.get(NIXDEV_SEARCH_INDEX, timeout=30)
             resp.raise_for_status()
 
             # Parse JavaScript: Search.setIndex({...})
@@ -563,7 +563,7 @@ class NoogleCache:
             return self._data, self._builtin_types or {}
 
         try:
-            resp = requests.get(NOOGLE_API, timeout=60)
+            resp = HTTP.get(NOOGLE_API, timeout=60)
             resp.raise_for_status()
             payload = resp.json()
 
