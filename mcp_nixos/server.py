@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""MCP-NixOS Server - Model Context Protocol tools for NixOS, Home Manager, and nix-darwin.
+"""MCP-nixarchy Server - Model Context Protocol tools for NixOS, Home Manager, and nix-darwin.
 
 Provides search and query capabilities for:
 - NixOS packages, options, and programs via Elasticsearch API
@@ -181,7 +181,7 @@ _SERVER_INSTRUCTIONS = (
     '  "which commit shipped X version Y?"  → nix_versions {"package":"X","version":"Y"}\n'
 )
 
-mcp = FastMCP("mcp-nixos", version=__version__, instructions=_SERVER_INSTRUCTIONS)
+mcp = FastMCP("mcp-nixarchy", version=__version__, instructions=_SERVER_INSTRUCTIONS)
 
 
 _TRUE_TOKENS = {"1", "true", "yes", "y", "on"}
@@ -635,7 +635,7 @@ def main() -> None:
     except KeyboardInterrupt:
         pass
     except ValueError as exc:
-        print(f"mcp-nixos: error: {exc}", file=sys.stderr)
+        print(f"mcp-nixarchy: error: {exc}", file=sys.stderr)
         sys.exit(1)
 
 

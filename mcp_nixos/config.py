@@ -1,4 +1,4 @@
-"""Configuration constants and exception classes for MCP-NixOS server."""
+"""Configuration constants and exception classes for MCP-nixarchy server."""
 
 import os
 
@@ -42,7 +42,7 @@ FLAKE_INDEX = "latest-51-group-manual"
 
 # FlakeHub API (Determinate Systems)
 FLAKEHUB_API = "https://api.flakehub.com"
-FLAKEHUB_USER_AGENT = f"mcp-nixos/{__version__}"
+FLAKEHUB_USER_AGENT = f"mcp-nixarchy/{__version__}"
 
 # Nixvim options via NuschtOS search infrastructure.
 # Layout (reorganized mid-2026; old `…/search/meta/N.json` path was removed):

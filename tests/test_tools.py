@@ -673,7 +673,7 @@ class TestChannelRevisions:
             assert rev == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
             assert source == "branch_head"
             call_kwargs = mock_get.call_args.kwargs
-            assert call_kwargs["headers"]["User-Agent"].startswith("mcp-nixos/")
+            assert call_kwargs["headers"]["User-Agent"].startswith("mcp-nixarchy/")
         finally:
             base_mod._BRANCH_REVS.clear()
 

@@ -149,6 +149,10 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
   - `name = "mcp-nixarchy"`.
   - `description = "MCP server for NixOS, Home Manager, nix-darwin and nixarchy"`.
   - URLs point to `https://github.com/olafkfreund/mcp-nixarchy`.
+  - (Deviation, found in implementation:)
+    - There was no `[project.urls]`, so one was added (Homepage).
+    - Added `[tool.hatch.build.targets.wheel] packages = ["mcp_nixos"]`, because hatchling derives the package directory from the project name, and the wheel build failed without it.
+    - Every outgoing User-Agent was renamed, including `sources/base.py` `_GITHUB_USER_AGENT` and four in `sources/nixhub.py`, not only `config.py`.
   - `[project.scripts]` has `mcp-nixarchy = "mcp_nixos.server:main"` and `mcp-nixos = "mcp_nixos.server:main"`. Add the comment `# alias, remove after v3.2`.
 - `mcp_nixos/__init__.py`: `version("mcp-nixarchy")`, and the docstring says MCP-nixarchy.
 - `server.py`: `FastMCP("mcp-nixarchy", …)`.

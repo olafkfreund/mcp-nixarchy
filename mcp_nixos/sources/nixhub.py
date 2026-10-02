@@ -114,7 +114,7 @@ async def _check_binary_cache(name: str, version: str = "latest", system: str = 
     All blocking HTTP requests are executed in a thread pool to avoid blocking the event loop.
     Per-system cache checks run concurrently for better performance.
     """
-    headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+    headers = {"Accept": "application/json", "User-Agent": f"mcp-nixarchy/{__version__}"}
 
     # Resolve package to get store paths via NixHub (in thread pool)
     err_msg, data = await asyncio.to_thread(_fetch_nixhub_resolve, name, version or "latest", headers)
@@ -180,7 +180,7 @@ def _fetch_nixhub_search(query: str) -> tuple[str | None, dict[str, Any] | list[
     try:
         url = f"{NIXHUB_API}/v2/search"
         params = {"q": query}
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixarchy/{__version__}"}
         resp = HTTP.get(url, params=params, headers=headers, timeout=15)
 
         if resp.status_code >= 500:
@@ -245,7 +245,7 @@ def _fetch_nixhub_pkg(name: str) -> tuple[str | None, list[Any] | None]:
     """
     try:
         url = f"{NIXHUB_API}/v1/pkg"
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixarchy/{__version__}"}
         resp = HTTP.get(url, params={"name": name}, headers=headers, timeout=15)
 
         if resp.status_code in (400, 404):
@@ -270,7 +270,7 @@ def _fetch_nixhub_resolve_sync(name: str, version: str) -> dict[str, Any] | None
     """
     try:
         url = f"{NIXHUB_API}/v2/resolve"
-        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixos/{__version__}"}
+        headers = {"Accept": "application/json", "User-Agent": f"mcp-nixarchy/{__version__}"}
         resp = HTTP.get(url, params={"name": name, "version": version}, headers=headers, timeout=10)
         if resp.status_code == 200:
             result: dict[str, Any] = resp.json()

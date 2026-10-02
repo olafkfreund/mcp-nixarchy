@@ -27,7 +27,7 @@ _COMMIT_IN_INDEX = re.compile(r"-([0-9a-f]{40})$")
 _BRANCH_REV_TTL = 600.0
 _BRANCH_REVS: dict[str, tuple[str, float]] = {}
 
-_GITHUB_USER_AGENT = f"mcp-nixos/{__version__}"
+_GITHUB_USER_AGENT = f"mcp-nixarchy/{__version__}"
 
 # =============================================================================
 # Channel helpers
