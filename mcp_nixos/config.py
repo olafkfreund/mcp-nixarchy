@@ -57,6 +57,12 @@ NIXVIM_OPTIONS_CHUNKS_BASE = "https://nix-community.github.io/nixvim/search/data
 # NVF options from the latest published (unstable) documentation.
 NVF_OPTIONS_URL = "https://nvf.notashelf.dev/options.html"
 
+# nixarchy options catalogue and manual: installed copy first, GitHub as the fallback.
+NIXARCHY_OPTIONS_PATH = "/etc/nixarchy/options.json"
+NIXARCHY_OPTIONS_URL = "https://github.com/olafkfreund/nixarchy/releases/latest/download/options.json"
+NIXARCHY_DOCS_PATH = "/etc/nixarchy/docs"
+NIXARCHY_REPO = "olafkfreund/nixarchy"
+
 # NixOS Wiki (MediaWiki API)
 WIKI_API = "https://wiki.nixos.org/w/api.php"
 

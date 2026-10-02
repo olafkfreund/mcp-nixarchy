@@ -7,7 +7,7 @@ from typing import Any
 import requests
 
 from .. import __version__
-from ..caches import HtmlOptionsCache, channel_cache, darwin_cache, home_manager_cache
+from ..caches import HtmlOptionsCache, channel_cache, darwin_cache, home_manager_cache, nixarchy_options_cache
 from ..config import (
     NIXOS_API,
     NIXOS_AUTH,
@@ -212,7 +212,8 @@ _BROWSE_DISPLAY_LIMIT = 100
 
 def _html_source_cache(source: str) -> HtmlOptionsCache:
     """Return the option catalogue cache for an HTML-parsed source."""
-    return home_manager_cache if source == "home-manager" else darwin_cache
+    caches = {"home-manager": home_manager_cache, "darwin": darwin_cache, "nixarchy": nixarchy_options_cache}
+    return caches.get(source, darwin_cache)
 
 
 def _search_html_options(cache: HtmlOptionsCache, query: str, limit: int) -> str:
@@ -253,6 +254,9 @@ def _info_html_options(cache: HtmlOptionsCache, name: str) -> str:
                     info.append(f"Type: {opt['type']}")
                 if opt["description"]:
                     info.append(f"Description: {opt['description']}")
+                for label, key in (("Default", "default"), ("Example", "example"), ("Declared in", "declared_in")):
+                    if opt.get(key):
+                        info.append(f"{label}: {opt[key]}")
                 return "\n".join(info)
 
         name_cf = name.casefold()
@@ -303,6 +307,8 @@ def _stats_html_options(cache: HtmlOptionsCache) -> str:
             f"* Total options: {len(options):,}",
             f"* Categories: {len(categories)}",
         ]
+        if cache.origin:
+            result.append(f"* Source: {cache.origin}")
         result.append("* Top categories:")
         for cat, count in top_cats:
             result.append(f"  - {cat}: {count:,}")

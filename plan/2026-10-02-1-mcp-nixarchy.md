@@ -248,6 +248,10 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
   - Assert search ranking, the info fields, browse `programs.nixarchy`, and the stats `Source:` line.
   - With a missing path and an unreachable URL (patch `HTTP.get` to raise), assert the error text says "not available".
 - Verify: CHECK.
+- (Deviation, found in implementation:)
+  - `HtmlOptionsCache.__init__` sets `self.origin = ""`, so stats checks `cache.origin` and not `getattr`, which mypy requires.
+  - An empty `MCP_NIXARCHY_OPTIONS` counts as unset.
+  - A dict-shaped `description` (`{_type: mdDoc, text}`, from older nixosOptionsDoc output) is unwrapped.
 - Commit: `feat: add nixarchy options source (#1)`.
 
 **15. C2: `nixarchy-docs` in `sources/nixarchy.py` and `caches.py`**

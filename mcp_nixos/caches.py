@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import threading
 import time
@@ -18,6 +19,8 @@ from .config import (
     FALLBACK_CHANNELS,
     FLAKE_INDEX,
     HOME_MANAGER_URL,
+    NIXARCHY_OPTIONS_PATH,
+    NIXARCHY_OPTIONS_URL,
     NIXDEV_SEARCH_INDEX,
     NIXOS_API,
     NIXOS_AUTH,
@@ -509,7 +512,11 @@ class HtmlOptionsCache:
         self.url = url
         self.display_name = display_name
         self.options: list[dict[str, str]] | None = None
+        self.origin = ""  # where the data came from; only set by sources with several locations
         self._init_lock = threading.Lock()
+
+    def _load(self) -> list[dict[str, str]]:
+        return parse_html_options(self.url, limit=None)
 
     def get_options(self) -> list[dict[str, str]]:
         """Fetch, parse, and cache the full option catalogue."""
@@ -520,7 +527,7 @@ class HtmlOptionsCache:
             if self.options is not None:
                 return self.options
 
-            options = parse_html_options(self.url, limit=None)
+            options = self._load()
             if not options:
                 raise APIError(f"Failed to parse {self.display_name} options: no options found")
 
@@ -530,6 +537,57 @@ class HtmlOptionsCache:
 
 home_manager_cache = HtmlOptionsCache(HOME_MANAGER_URL, "Home Manager")
 darwin_cache = HtmlOptionsCache(DARWIN_URL, "nix-darwin")
+
+
+class NixarchyOptionsCache(HtmlOptionsCache):
+    """nixarchy module options from an options.json (installed copy, env override, or GitHub release)."""
+
+    def __init__(self) -> None:
+        super().__init__(url="", display_name="nixarchy")
+
+    def _load(self) -> list[dict[str, str]]:
+        override = os.environ.get("MCP_NIXARCHY_OPTIONS")
+        if override:
+            location, origin = override, f"custom ({override})"
+        elif os.path.isfile(NIXARCHY_OPTIONS_PATH):
+            location, origin = NIXARCHY_OPTIONS_PATH, f"installed ({NIXARCHY_OPTIONS_PATH})"
+        else:
+            location = NIXARCHY_OPTIONS_URL
+            origin = f"GitHub release {location} (may differ from your installed nixarchy)"
+
+        try:
+            if location.startswith(("http://", "https://")):
+                resp = HTTP.get(location, timeout=30)
+                resp.raise_for_status()
+                raw = resp.json()
+            else:
+                with open(location, encoding="utf-8") as f:
+                    raw = json.load(f)
+            options = []
+            for name, v in raw.items():
+                desc = v.get("description", "")
+                if isinstance(desc, dict):  # older nixosOptionsDoc: {"_type": "mdDoc", "text": ...}
+                    desc = desc.get("text", "")
+                options.append(
+                    {
+                        "name": name,
+                        "type": str(v.get("type", "")),
+                        "description": (desc if isinstance(desc, str) else str(desc)).strip(),
+                        "default": str((v.get("default") or {}).get("text", "")),
+                        "example": str((v.get("example") or {}).get("text", "")),
+                        "declared_in": ", ".join(str(d) for d in v.get("declarations", [])),
+                    }
+                )
+        except Exception as exc:
+            raise APIError(
+                f"nixarchy options catalogue not available ({location}): {exc}. "
+                f"It is installed by nixarchy at {NIXARCHY_OPTIONS_PATH}."
+            ) from exc
+        self.origin = origin
+        return options
+
+
+nixarchy_options_cache = NixarchyOptionsCache()
 
 
 class NixDevCache:
