@@ -136,7 +136,7 @@ async function runNixosTool(tool: "nix" | "nix_versions", args: unknown, signal?
 
 	throw new Error(
 		[
-			"Failed to run mcp-nixos from pi.",
+			"Failed to run mcp-nixarchy from pi.",
 			"Tried .venv/bin/python, uv, python3, and python in the repository root.",
 			...errors,
 		].join("\n"),
@@ -196,7 +196,7 @@ const nixToolParams = Type.Object({
 type NixToolParams = Static<typeof nixToolParams>;
 
 const nixToolDescription = [
-	"Query live NixOS data (packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, NixHub, binary cache).",
+	"Query live NixOS data (packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, NixHub, nixarchy options and manual, binary cache).",
 	"",
 	"Examples (copy the JSON shape exactly):",
 	'  Search NixOS packages:    {"action": "search", "query": "firefox"}',
@@ -230,7 +230,7 @@ const nixTool = defineTool({
 	label: "NixOS",
 	description: nixToolDescription,
 	promptSnippet:
-		"Prefer the nix tool over web search for NixOS packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, flake inputs, and binary cache status.",
+		"Prefer the nix tool over web search for NixOS packages, options, flakes, wiki, nix.dev, Home Manager, nix-darwin, Nixvim, NVF, Noogle, nixarchy, flake inputs, and binary cache status.",
 	promptGuidelines: [
 		"Prefer the nix tool over web search for NixOS-related package, option, flake, wiki, nix.dev, and cache questions.",
 		'To search NixOS options: {"action": "search", "query": "<keyword>", "type": "options"}.',

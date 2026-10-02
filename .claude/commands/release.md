@@ -1,34 +1,32 @@
 ---
 allowed-tools: Bash, Read, Glob, Grep, TodoWrite
-description: Review and publish the Release Please release PR, then verify every registry
+description: Review and merge the Release Please release PR, then verify the GitHub release
 ---
 
 # Release
 
-Releases are managed by Release Please. Do not edit the version, create a tag, or create a GitHub Release by hand during the normal release path.
+Releases are managed by Release Please and published as GitHub releases only. There is no PyPI, Docker, GHCR or FlakeHub publishing. Do not edit the version, create a tag, or create a GitHub Release by hand.
 
 ## How it works
 
 1. Conventional commits merged to `main` update the open `release: vX.Y.Z` PR.
 2. The release PR updates `pyproject.toml`, `.release-please-manifest.json`, and `RELEASE_NOTES.md`.
 3. Merging that PR makes Release Please create the matching tag and GitHub Release.
-4. The resulting `release.published` event runs the existing trusted-publisher workflow, which publishes PyPI, Docker Hub, GHCR, and FlakeHub artifacts from that exact tag.
-5. `ci.yml` only validates builds; it does not publish rolling container images.
+4. `ci.yml` only validates builds.
 
 Version rules:
 
-- `fix:` produces a patch release.
-- `feat:` produces a minor release.
+- `fix:` produces a patch release; `feat:` produces a minor release.
 - `fix!:`, `feat!:`, or a `BREAKING CHANGE:` footer produces a major release.
-- Non-user-facing `ci:`, `docs:`, `test:`, `refactor:`, `build:`, and `chore:` commits are hidden and do not cause a release by themselves.
+- `ci:`, `docs:`, `test:`, `refactor:`, `build:`, and `chore:` commits are hidden and do not cause a release by themselves.
 
 ## Release checklist
 
 ### 1. Review the release PR
 
 ```bash
-gh pr list --search 'release: in:title is:open' --json number,title,url,headRefName
-gh pr view <PR_NUMBER> --json files,commits,reviews,statusCheckRollup
+gh pr list --repo olafkfreund/mcp-nixarchy --search 'release: in:title is:open' --json number,title,url,headRefName
+gh pr view <PR_NUMBER> --repo olafkfreund/mcp-nixarchy --json files,commits,reviews,statusCheckRollup
 git log "$(git describe --tags --abbrev=0)..origin/main" --oneline
 ```
 
@@ -39,58 +37,36 @@ Confirm that:
 - `pyproject.toml` and `.release-please-manifest.json` contain the same version;
 - CI and review are green.
 
-For the first automated release, verify that the migration merge commit's one-time `Release-As: 3.0.0` footer was honored. This major bump is required because Intel macOS flake outputs were removed.
-
 ### 2. Merge the release PR
 
 ```bash
-gh pr merge <PR_NUMBER> --squash --delete-branch
+gh pr merge <PR_NUMBER> --repo olafkfreund/mcp-nixarchy --squash --delete-branch
 ```
 
-The `Release Please` workflow owns tag creation and the GitHub Release. Its authenticated release event starts the `Publish Package` workflow, which owns every publication job. Never create or move the release tag manually.
+The `Release Please` workflow owns tag creation and the GitHub Release. Never create or move the release tag manually.
 
-### 3. Watch publication
+### 3. Watch the workflow
 
 ```bash
-gh run list --workflow release-please.yml --limit 3
-gh run list --workflow publish.yml --limit 3
-gh run watch <RELEASE_PLEASE_RUN_ID>
-gh run watch <PUBLISH_RUN_ID>
-gh run view <RUN_ID> --log-failed
+gh run list --repo olafkfreund/mcp-nixarchy --workflow release-please.yml --limit 3
+gh run watch <RUN_ID> --repo olafkfreund/mcp-nixarchy
+gh run view <RUN_ID> --repo olafkfreund/mcp-nixarchy --log-failed
 ```
 
-If PyPI/Docker or FlakeHub fails after the tag exists, fix the cause and rerun only the relevant recovery workflow with the immutable release tag:
-
-```bash
-gh workflow run publish.yml -f tag=vX.Y.Z -f docker_only=true
-gh workflow run deploy-flakehub.yml -f tag=vX.Y.Z
-```
-
-Manual package recovery republishes only the immutable version tag by default. Add `-f update_aliases=true` only when recovering the current latest release after verifying that moving `latest`, major, and minor aliases forward is correct. The manual package workflow intentionally cannot publish PyPI. A failed PyPI upload must be retried from the failed job in the original `Publish Package` run after confirming that no partial version exists.
-
-### 4. Independently verify public artifacts
+### 4. Verify the release
 
 ```bash
 VERSION=X.Y.Z
 
-gh release view "v$VERSION" --json tagName,isDraft,isPrerelease,publishedAt,url,targetCommitish
-curl --fail --silent "https://pypi.org/pypi/mcp-nixos/$VERSION/json" | jq -r .info.version
-uvx "mcp-nixos@$VERSION" --help
-
-docker buildx imagetools inspect "utensils/mcp-nixos:$VERSION"
-docker buildx imagetools inspect "ghcr.io/utensils/mcp-nixos:$VERSION"
-docker run --rm "utensils/mcp-nixos:$VERSION" --help
-
-curl --fail --silent https://api.flakehub.com/f/utensils/mcp-nixos \
-  | jq -r .version
-nix flake metadata "https://flakehub.com/f/utensils/mcp-nixos/$VERSION"
+gh release view "v$VERSION" --repo olafkfreund/mcp-nixarchy --json tagName,isDraft,isPrerelease,publishedAt,url,targetCommitish
+nix run "github:olafkfreund/mcp-nixarchy/v$VERSION" -- --help
 ```
 
-Verify that the tag and GitHub Release target the release PR merge commit, PyPI reports the exact version, both container manifests contain `linux/amd64` and `linux/arm64`, the container starts, and FlakeHub reports the exact version.
+Verify that the tag and GitHub Release target the release PR merge commit, and that `nix run` on the tag starts the server.
 
 ## Guardrails
 
-- Treat published tags and package versions as immutable; do not delete or retarget them to repair a release.
-- Do not publish from an unmerged branch or a dirty worktree.
+- Treat published tags as immutable; do not delete or retarget them to repair a release.
+- Do not release from an unmerged branch or a dirty worktree.
 - Do not merge a release PR with incomplete notes or a mismatched version.
-- Do not assume a green workflow means propagation succeeded; verify each public registry independently.
+- Always pass `--repo olafkfreund/mcp-nixarchy`; `gh` defaults to the upstream parent for forks.

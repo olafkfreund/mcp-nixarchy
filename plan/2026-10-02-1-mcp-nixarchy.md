@@ -196,7 +196,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 - Commit: `ci: drop registry publishing and website; GitHub releases only (#1)`.
 
 **12. B8: docs**
-- `README.md`: rewrite to at most about 120 lines.
+- `README.md`: rewrite to at most about 120 lines. (Deviation: it came out at 133 lines; the source and env-var tables and three client configs were kept rather than cut.)
   - What it is, and that it is a fork of utensils/mcp-nixos, with credit.
   - The two tools and their sources, including `nixarchy` and `nixarchy-docs`.
   - Install with `nix run github:olafkfreund/mcp-nixarchy` and the overlay snippet.

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-time information about NixOS packages, configuration options, Home Manager, nix-darwin, Nixvim, NVF, and flakes. It prevents AI assistants from hallucinating about NixOS package names and configurations by querying official APIs and documentation.
+mcp-nixarchy (a fork of utensils/mcp-nixos) is a Model Context Protocol (MCP) server that provides accurate, real-time information about NixOS packages, configuration options, Home Manager, nix-darwin, Nixvim, NVF, flakes, and the nixarchy distribution's options and manual. The Python module stays `mcp_nixos`, and the `mcp-nixos` command is an alias for `mcp-nixarchy`. It prevents AI assistants from hallucinating about NixOS package names and configurations by querying official APIs and documentation.
 
 ## Project Structure & Module Organization
 
@@ -27,11 +27,11 @@ MCP-NixOS is a Model Context Protocol (MCP) server that provides accurate, real-
     - `noogle.py` - Noogle function search.
     - `nixhub.py` - NixHub API + binary cache status.
     - `flake_inputs.py` - Local flake inputs via nix store.
+    - `nixarchy.py` - nixarchy options (`nixarchy`) and manual (`nixarchy-docs`).
 - `tests/` - Holds pytest unit and integration tests; markers live in `pytest.ini` and `tests/conftest.py`.
-- `website/` - The VitePress docs/marketing site (`index.md`, `usage.md`, `about.md`, custom theme under `.vitepress/`); static assets live in `website/public/`. Output builds to `website/out/` and deploys to S3/CloudFront via `deploy-website.yml`.
 - `.pi/` - Pi Coding Agent extension that wraps the MCP tools as native Pi tools (Pi does not speak MCP). `extensions/mcp-nixos.ts` spawns a Python subprocess that imports `mcp_nixos.server` and calls the tool functions directly — not part of the MCP server runtime, only relevant when running `pi` in this repo.
 - `flake.nix` - Defines the Nix dev shell, package, overlays, and checks.
-- `nix/` - Python package-set extension that vendors the FastMCP 4 / MCP SDK 2 stack (`fastmcp4.nix` plus one pure-Python wheel derivation per package, e.g. `fastmcp.nix`, `mcp.nix`, `starlette.nix`) for nixpkgs pins that still ship older releases. `flake.nix` applies it scoped to `pkgs.mcp-nixos` via `overrideScope`, and exports it set-wide as `overlays.fastmcp4`.
+- `nix/` - Python package-set extension that vendors the FastMCP 4 / MCP SDK 2 stack (`fastmcp4.nix` plus one pure-Python wheel derivation per package, e.g. `fastmcp.nix`, `mcp.nix`, `starlette.nix`) for nixpkgs pins that still ship older releases. `flake.nix` applies it scoped to `pkgs.mcp-nixarchy` via `overrideScope`, and exports it set-wide as `overlays.fastmcp4`.
 - `pyproject.toml` - Defines Python packaging and dependencies.
 - `dist/`, `htmlcov/`, and `result/` are generated artifacts; do not edit by hand.
 
@@ -55,6 +55,8 @@ Only **2 MCP tools** are exposed (consolidated from 17 in v1.0):
 - Binary cache status: cache.nixos.org narinfo queries
 - Flakes: search.nixos.org flake index
 - Local flake inputs: Direct access to /nix/store via `nix flake archive`
+- nixarchy options: `$MCP_NIXARCHY_OPTIONS`, then `/etc/nixarchy/options.json`, then the nixarchy GitHub release asset
+- nixarchy manual: `$MCP_NIXARCHY_DOCS`, then `/etc/nixarchy/docs`, then the nixarchy GitHub repository
 
 All responses are formatted as plain text for optimal LLM consumption.
 
@@ -84,7 +86,7 @@ build         # Build the package/distributions
 uv pip install -e ".[dev]"  # or pip install -e ".[dev]"
 
 # Run server
-uv run mcp-nixos  # or python -m mcp_nixos.server
+uv run mcp-nixarchy  # or python -m mcp_nixos.server
 ```
 
 ### Transports (STDIO vs HTTP)
@@ -93,16 +95,16 @@ By default the server runs over STDIO (for local MCP clients). The latest versio
 
 ```bash
 # STDIO (default)
-MCP_NIXOS_TRANSPORT=stdio mcp-nixos
+MCP_NIXOS_TRANSPORT=stdio mcp-nixarchy
 
 # HTTP (default endpoint: http://127.0.0.1:8000/mcp)
-MCP_NIXOS_TRANSPORT=http MCP_NIXOS_HOST=127.0.0.1 MCP_NIXOS_PORT=8000 mcp-nixos
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_HOST=127.0.0.1 MCP_NIXOS_PORT=8000 mcp-nixarchy
 
 # Custom path
-MCP_NIXOS_TRANSPORT=http MCP_NIXOS_PATH=/api/mcp mcp-nixos
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_PATH=/api/mcp mcp-nixarchy
 
 # Stateless HTTP (disables per-client session state)
-MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixos
+MCP_NIXOS_TRANSPORT=http MCP_NIXOS_STATELESS_HTTP=1 mcp-nixarchy
 ```
 
 ## Testing Guidelines
@@ -141,15 +143,15 @@ pytest tests/ -k "nixos" -v
 ```nix
 # In your flake.nix
 {
-  inputs.mcp-nixos.url = "github:utensils/mcp-nixos";
+  inputs.mcp-nixarchy.url = "github:olafkfreund/mcp-nixarchy";
 
-  outputs = { nixpkgs, mcp-nixos, ... }: {
-    # Use the overlay to add pkgs.mcp-nixos
-    nixpkgs.overlays = [ mcp-nixos.overlays.default ];
+  outputs = { nixpkgs, mcp-nixarchy, ... }: {
+    # Use the overlay to add pkgs.mcp-nixarchy
+    nixpkgs.overlays = [ mcp-nixarchy.overlays.default ];
 
     # Then use in your config:
-    # environment.systemPackages = [ pkgs.mcp-nixos ];  # NixOS
-    # home.packages = [ pkgs.mcp-nixos ];               # Home Manager
+    # environment.systemPackages = [ pkgs.mcp-nixarchy ];  # NixOS
+    # home.packages = [ pkgs.mcp-nixarchy ];               # Home Manager
   };
 }
 ```
@@ -162,7 +164,7 @@ pytest tests/ -k "nixos" -v
     "nixos": {
       "type": "stdio",
       "command": "nix",
-      "args": ["run", "github:utensils/mcp-nixos"]
+      "args": ["run", "github:olafkfreund/mcp-nixarchy"]
     }
   }
 }
@@ -177,20 +179,24 @@ pytest tests/ -k "nixos" -v
 5. **Plain Text Output**: All responses are formatted as human-readable plain text. Never return raw JSON or XML to users.
 6. **Environment Variables**:
    - `ELASTICSEARCH_URL` overrides the NixOS search backend for local testing.
+   - `MCP_NIXOS_ALLOW_FLAKE_INPUTS=1` allows the `flake-inputs` action over HTTP transport (refused by default).
+   - `MCP_NIXARCHY_OPTIONS` points the `nixarchy` source at a local `options.json` (path or URL).
+   - `MCP_NIXARCHY_DOCS` points the `nixarchy-docs` source at a local docs directory.
    - `MCP_NIXOS_TRANSPORT` selects transport: `stdio` (default) or `http`.
    - `MCP_NIXOS_HOST` configures the HTTP bind address (default: `127.0.0.1`).
    - `MCP_NIXOS_PORT` configures the HTTP bind port (default: `8000`).
    - `MCP_NIXOS_PATH` configures the HTTP MCP endpoint path (default: `/mcp`); must be an absolute non-empty path.
    - `MCP_NIXOS_STATELESS_HTTP=1` disables per-client session state for HTTP.
-7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`.
+7. **Flake Inputs**: The `flake-inputs` action requires nix to be installed locally. It uses `nix flake archive --json` to discover inputs and their store paths, with security validation to ensure paths stay within `/nix/store/`. A `source` that is a flake directory must be under the current directory or `$HOME`.
 8. **Binary Cache Status**: The `cache` action queries cache.nixos.org to check if packages have pre-built binaries. It uses NixHub to resolve package versions to store paths, then checks narinfo availability.
 9. **NixHub Source**: The `nixhub` source provides rich package metadata including license, homepage, programs, and store paths via the search.devbox.sh API.
 10. **NVF Source**: The `nvf` source tracks NVF's latest published unstable options. Its canonical names are `vim.*`; callers may also use `programs.nvf.vim.*` or `programs.nvf.settings.vim.*`, which normalize to the canonical path before search, info, or browse operations.
+11. **nixarchy Sources**: `nixarchy` (module options) and `nixarchy-docs` (manual pages) read the installed copy under `/etc/nixarchy/` first and fall back to GitHub. Output states where the data came from, because the GitHub copy may differ from the installed nixarchy.
 
 ## Commit, PR, & Release Guidelines
 
 - Commit messages follow `type: summary` (e.g., `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`).
 - **CI**: Runs on all PRs - flake check, Nix build, Python distribution build, package validation (twine), linting, type checking, tests.
-- **Publish**: Release Please creates tags and GitHub Releases; the authenticated release event then publishes PyPI, multi-arch Docker images to GHCR and Docker Hub, and the tagged flake to FlakeHub.
-- **Release Process**: Use the `/release` command to review and merge the generated `release: vX.Y.Z` PR and verify every public registry. Do not bump versions or create tags manually.
+- **Publish**: Release Please creates tags and GitHub Releases. Distribution is the flake plus GitHub releases; there is no PyPI, Docker or FlakeHub publishing.
+- **Release Process**: Use the `/release` command to review and merge the generated `release: vX.Y.Z` PR and verify the GitHub release. Do not bump versions or create tags manually.
 - Release PRs update `pyproject.toml`, `.release-please-manifest.json`, and `RELEASE_NOTES.md`; their squash merge message is `release: vX.Y.Z`.
