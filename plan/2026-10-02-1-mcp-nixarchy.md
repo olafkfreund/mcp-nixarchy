@@ -171,6 +171,9 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 - Rename the devshell banner and the `run` command to `mcp-nixarchy`.
 - `pyproject` `version` is still read by the flake. Check how the flake gets the version and keep that working.
 - `.mcp.json`: args become `["run", ".#mcp-nixarchy"]`.
+- (Deviation, found in implementation:)
+  - Also removed the `docsCommands` list, the `docs-*` commands and `nodejs_20` from the default devshell. They `cd` into `website/`, which step 11 deletes.
+  - Kept `lib.mkMcpNixos` as an alias of `lib.mkMcpNixarchy` for one release, like the other aliases.
 - Verify:
   - `nix flake check`;
   - `nix build .#mcp-nixarchy && ls result/bin` shows `mcp-nixarchy` and `mcp-nixos`;
