@@ -133,7 +133,7 @@ class TestNvfSourceContract:
 
     def test_source_is_reserved_and_uses_published_options(self):
         assert "nvf" in KNOWN_SOURCES
-        assert NVF_OPTIONS_URL == "https://nvf.notashelf.dev/options.html"
+        assert NVF_OPTIONS_URL == "https://nvf.notashelf.dev/options-full.html"
 
 
 @pytest.mark.unit
@@ -187,7 +187,7 @@ class TestNvfCache:
                 "https://nvf.notashelf.dev/modules/languages/nix.nix",
                 "https://github.com/NotAShelf/nvf/blob/main/modules/languages/default.nix",
             ],
-            "url": "https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable",
+            "url": "https://nvf.notashelf.dev/options-full.html#option-vim.languages.nix.enable",
         }
         assert options[1] == {
             "name": "vim.theme.enable",
@@ -196,7 +196,7 @@ class TestNvfCache:
             "default": "",
             "example": "",
             "declarations": [],
-            "url": "https://nvf.notashelf.dev/options.html#option-vim.theme.enable",
+            "url": "https://nvf.notashelf.dev/options-full.html#option-vim.theme.enable",
         }
 
     def test_get_options_fetches_once_and_reuses_process_cache(self):
@@ -328,7 +328,7 @@ class TestNvfInfo:
         assert "Default: false" in result
         assert "Example: true" in result
         assert "Declared in: https://github.com/NotAShelf/nvf/" in result
-        assert "Documentation: https://nvf.notashelf.dev/options.html#option-vim.languages.nix.enable" in result
+        assert "Documentation: https://nvf.notashelf.dev/options-full.html#option-vim.languages.nix.enable" in result
 
     def test_info_matches_canonical_name_case_insensitively(self):
         with patch("mcp_nixos.sources.nvf.nvf_cache.get_options", return_value=NVF_SOURCE_OPTIONS):
