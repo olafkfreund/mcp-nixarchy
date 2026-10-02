@@ -164,19 +164,15 @@ class TestMainTransport:
 
 
 @pytest.mark.unit
-def test_elasticsearch_url_env_override(monkeypatch):
-    import importlib
+def test_elasticsearch_url_env_override():
+    # A subprocess, not importlib.reload: reloading config would replace APIError for later tests.
+    import subprocess
+    import sys
 
-    from mcp_nixos import config
-
-    monkeypatch.setenv("ELASTICSEARCH_URL", "http://localhost:9200/")
-    try:
-        importlib.reload(config)
-        assert config.NIXOS_API == "http://localhost:9200"
-    finally:
-        monkeypatch.delenv("ELASTICSEARCH_URL")
-        importlib.reload(config)
-    assert config.NIXOS_API == "https://search.nixos.org/backend"
+    code = "from mcp_nixos.config import NIXOS_API; print(NIXOS_API)"
+    env = {**os.environ, "ELASTICSEARCH_URL": "http://localhost:9200/"}
+    out = subprocess.run([sys.executable, "-c", code], env=env, capture_output=True, text=True, check=True)
+    assert out.stdout.strip() == "http://localhost:9200"
 
 
 @pytest.mark.unit
