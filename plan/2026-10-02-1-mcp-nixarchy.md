@@ -188,6 +188,11 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 - `release-please-config.json`: `"package-name": "mcp-nixarchy"`.
 - `release-please.yml`: remove any step that dispatches `publish.yml` or uses PyPI or Docker secrets. Keep the GitHub release.
 - Verify: `grep -rn "docker\|pypi\|website\|flakehub" -i .github` shows only intended remainders, and `nix run nixpkgs#actionlint -- .github/workflows/*.yml` is clean.
+- (Deviation, found in implementation:)
+  - The `ci.yml` smoke test now runs `mcp-nixarchy --help`.
+  - The Codecov `slug` points to the fork. It is `fail_ci_if_error: false`, so it is harmless without a token.
+  - The stale `/website/` block was removed from `.gitignore`.
+  - `.claude/commands/release.md` moves to step 12.
 - Commit: `ci: drop registry publishing and website; GitHub releases only (#1)`.
 
 **12. B8: docs**
@@ -204,6 +209,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
   - Remove the `website/` and Docker/PyPI/FlakeHub release lines. Release is release-please to GitHub releases.
   - Add the new sources to the architecture and data-source lists, and the new environment variables.
 - `.pi/extensions/mcp-nixos.ts`: update user-visible names and descriptions only.
+- `.claude/commands/release.md` (added in step 11): rewrite for this fork. The steps are: review the release-please PR, merge it, verify the GitHub release and tag, and check that `nix run github:olafkfreund/mcp-nixarchy/<tag> -- --help` works. Remove PyPI, Docker, GHCR and FlakeHub.
 - `LICENSE`: add the line `Copyright (c) 2026 Olaf K. Freund` under the existing copyright.
 - Verify: `grep -rn "utensils/mcp-nixos" --exclude-dir=.git . | grep -v RELEASE_NOTES` leaves only credit or upstream links. Run CHECK.
 - Commit: `docs: rebrand README and agent docs as mcp-nixarchy (#1)`.
