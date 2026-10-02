@@ -334,6 +334,12 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
   - Check that the PR targets `olafkfreund/mcp-nixarchy`. Pass `--repo olafkfreund/mcp-nixarchy`, because `gh` defaults to the parent repo for forks.
 - Watch CI.
 
+- CI follow-up (2026-10-03, deviation):
+  - CI on the PR failed only on 3 NVF integration tests, which also fail on `main`.
+  - Root cause: `nvf.notashelf.dev/options.html` became a short overview page with 64 options. The full catalogue (2,557 options) is now at `options-full.html`.
+  - Fixed by pointing `NVF_OPTIONS_URL` at `options-full.html`, and updating test URLs, in a commit of its own. It is generic and upstream-worthy, so it joins the A-series cherry-picks for step 21.
+  - Also from Copilot review: nixarchy option search, info and browse now print the `Source:` origin line (`c573ad4`). Explicit `limit=20` on `flake-inputs ls` stays promoted to 500, matching `store ls`/`read`.
+
 **20. nixarchy issue**
 - In `olafkfreund/nixarchy`, open an issue carrying spec part D (D1–D5), linked to this PR.
 - Mention D6 (machine cleanup) to the user as a manual follow-up. No edits.
