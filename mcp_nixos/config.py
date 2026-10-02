@@ -1,5 +1,7 @@
 """Configuration constants and exception classes for MCP-NixOS server."""
 
+import os
+
 from . import __version__
 
 
@@ -12,7 +14,7 @@ class DocumentParseError(Exception):
 
 
 # API Configuration
-NIXOS_API = "https://search.nixos.org/backend"
+NIXOS_API = os.environ.get("ELASTICSEARCH_URL", "https://search.nixos.org/backend").rstrip("/")
 NIXOS_AUTH = ("aWVSALXpZv", "X8gPHnzL52wFEekuxsfQ9cSh")
 
 # Base channel patterns - these are dynamic and auto-discovered
