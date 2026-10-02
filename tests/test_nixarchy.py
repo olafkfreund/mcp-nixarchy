@@ -50,7 +50,7 @@ def fresh_cache(tmp_path, monkeypatch):
 @pytest.mark.unit
 def test_search_ranks_exact_name_first():
     result = _search_nixarchy_options("programs.nixarchy.mcp", 5)
-    assert result.splitlines()[2] == "* programs.nixarchy.mcp"
+    assert next(line for line in result.splitlines() if line.startswith("* ")) == "* programs.nixarchy.mcp"
     assert "Type: submodule" in result
 
 
@@ -107,6 +107,16 @@ def test_installed_path_then_github_fallback(monkeypatch):
         result = _stats_nixarchy_options()
     assert "not available" in result
     assert "/etc/nixarchy/options.json" in result
+
+
+@pytest.mark.unit
+def test_search_info_browse_state_origin():
+    for result in (
+        _search_nixarchy_options("nixarchy", 5),
+        _info_nixarchy_options("programs.nixarchy.enable"),
+        _browse_options("nixarchy", "programs.nixarchy"),
+    ):
+        assert "Source: custom (" in result
 
 
 @pytest.mark.unit

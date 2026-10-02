@@ -231,6 +231,8 @@ def _search_html_options(cache: HtmlOptionsCache, query: str, limit: int) -> str
         if not matches:
             return f"No {cache.display_name} options found matching '{query}'"
         results = [f"Found {len(matches)} {cache.display_name} options matching '{query}':\n"]
+        if cache.origin:
+            results.insert(0, f"Source: {cache.origin}")
         for _score, opt in matches:
             results.append(f"* {opt['name']}")
             if opt["type"]:
@@ -250,6 +252,8 @@ def _info_html_options(cache: HtmlOptionsCache, name: str) -> str:
         for opt in options:
             if opt["name"] == name:
                 info = [f"Option: {name}"]
+                if cache.origin:
+                    info.append(f"Source: {cache.origin}")
                 if opt["type"]:
                     info.append(f"Type: {opt['type']}")
                 if opt["description"]:
@@ -329,6 +333,8 @@ def _browse_options(source: str, prefix: str) -> str:
             if not matches:
                 return f"No {source_name} options found with prefix '{prefix}'"
             results = [f"{source_name} options with prefix '{prefix}' ({len(matches):,} found):\n"]
+            if cache.origin:
+                results.insert(0, f"Source: {cache.origin}")
             matches.sort(key=lambda x: x["name"])
             for opt in matches[:_BROWSE_DISPLAY_LIMIT]:
                 results.append(f"* {opt['name']}")
