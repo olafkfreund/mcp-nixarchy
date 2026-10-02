@@ -1,5 +1,5 @@
 ---
-status: draft
+status: approved
 issue: 1
 spec: spec/2026-10-02-1-mcp-nixarchy.md
 ---
