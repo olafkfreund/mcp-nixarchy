@@ -119,7 +119,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 
 **6. A6: `sources/flake_inputs.py:168` `_flake_inputs_ls`**
 - Add a `limit: int` parameter.
-- After building `dirs` and `files`, print at most `limit` entries (directories first), then `... and N more entries` when truncated. Copy the wording from `store.py:_store_ls`.
+- After building `dirs` and `files`, print at most `limit` entries (directories first). When truncated, append ` showing N of M` to the header, which is the wording `store.py:_store_ls` actually uses. (Deviation: the plan first said `... and N more entries`; implementation matched store.py instead.)
 - In `server.py`, call `_flake_inputs_ls(flake_dir, query, ls_limit)` with `ls_limit` computed as in the `store ls` branch (20 → `DEFAULT_LINE_LIMIT`, capped at `MAX_LINE_LIMIT`).
 - Fix the existing tests that call `_flake_inputs_ls` positionally.
 - Add a test: 30 fake entries with `limit=5` shows 5 lines plus the "more" line.

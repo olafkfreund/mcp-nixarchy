@@ -305,7 +305,7 @@ class TestFlakeInputsLs:
     @pytest.mark.asyncio
     async def test_nix_not_available(self):
         with patch("mcp_nixos.server._check_nix_available", return_value=False):
-            result = await _flake_inputs_ls(".", "nixpkgs")
+            result = await _flake_inputs_ls(".", "nixpkgs", 20)
             assert "NIX_NOT_FOUND" in result
 
     @pytest.mark.asyncio
@@ -316,9 +316,23 @@ class TestFlakeInputsLs:
                 "inputs": {"nixpkgs": {"path": "/nix/store/abc", "inputs": {}}},
             }
             with patch("mcp_nixos.server._get_flake_inputs", return_value=(True, mock_data, "")):
-                result = await _flake_inputs_ls(".", "nonexistent")
+                result = await _flake_inputs_ls(".", "nonexistent", 20)
                 assert "NOT_FOUND" in result
                 assert "nixpkgs" in result  # Should suggest available inputs
+
+    @pytest.mark.asyncio
+    async def test_ls_honours_limit(self, tmp_path):
+        for i in range(30):
+            (tmp_path / f"f{i:02}.nix").write_text("x")
+        mock_data = {"path": "/nix/store/xxx", "inputs": {"nixpkgs": {"path": str(tmp_path), "inputs": {}}}}
+        with (
+            patch("mcp_nixos.server._check_nix_available", return_value=True),
+            patch("mcp_nixos.server._get_flake_inputs", return_value=(True, mock_data, "")),
+            patch("mcp_nixos.sources.flake_inputs._validate_store_path", return_value=True),
+        ):
+            result = await _flake_inputs_ls(".", "nixpkgs", 5)
+        assert "showing 5 of 30" in result
+        assert len([ln for ln in result.splitlines() if ln.startswith("  f")]) == 5
 
 
 @pytest.mark.unit

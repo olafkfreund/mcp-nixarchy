@@ -469,7 +469,8 @@ async def nix(
         elif type == "ls":
             if not query:
                 return error("Query required for ls (input name or input:path)")
-            return await _flake_inputs_ls(flake_dir, query)
+            ls_limit = limit if limit != 20 else DEFAULT_LINE_LIMIT
+            return await _flake_inputs_ls(flake_dir, query, min(ls_limit, MAX_LINE_LIMIT))
         elif type == "read":
             if not query:
                 return error("Query required for read (input:path format)")
