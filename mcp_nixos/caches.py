@@ -385,6 +385,7 @@ class NvfCache:
 
     def __init__(self) -> None:
         self.options: list[NvfOption] | None = None
+        self._init_lock = threading.Lock()
 
     @staticmethod
     def _extract_text(option: Tag, selector: str, label: str = "") -> str:
@@ -451,23 +452,27 @@ class NvfCache:
         if self.options is not None:
             return self.options
 
-        try:
-            response = HTTP.get(NVF_OPTIONS_URL, timeout=30)
-            response.raise_for_status()
-            options = self._parse_options(response.content)
-            if not options:
-                raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+        with self._init_lock:
+            if self.options is not None:
+                return self.options
 
-            self.options = options
-            return self.options
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching NVF options") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch NVF options: {exc}") from exc
-        except APIError:
-            raise
-        except Exception as exc:
-            raise APIError(f"Failed to parse NVF options: {exc}") from exc
+            try:
+                response = HTTP.get(NVF_OPTIONS_URL, timeout=30)
+                response.raise_for_status()
+                options = self._parse_options(response.content)
+                if not options:
+                    raise APIError("Failed to parse NVF options: no canonical vim.* options found")
+
+                self.options = options
+                return self.options
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching NVF options") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch NVF options: {exc}") from exc
+            except APIError:
+                raise
+            except Exception as exc:
+                raise APIError(f"Failed to parse NVF options: {exc}") from exc
 
 
 nvf_cache = NvfCache()
@@ -514,37 +519,42 @@ class NixDevCache:
 
     def __init__(self) -> None:
         self.index: dict[str, Any] | None = None
+        self._init_lock = threading.Lock()
 
     def get_index(self) -> dict[str, Any]:
         """Fetch and cache nix.dev search index."""
         if self.index is not None:
             return self.index
 
-        try:
-            resp = HTTP.get(NIXDEV_SEARCH_INDEX, timeout=30)
-            resp.raise_for_status()
+        with self._init_lock:
+            if self.index is not None:
+                return self.index
 
-            # Parse JavaScript: Search.setIndex({...})
-            content = resp.text.strip()
-            if content.startswith("Search.setIndex("):
-                match = re.search(r"Search\.setIndex\((.*)\)\s*$", content, re.DOTALL)
-                if match:
-                    json_str = match.group(1)
-                    self.index = json.loads(json_str)
+            try:
+                resp = HTTP.get(NIXDEV_SEARCH_INDEX, timeout=30)
+                resp.raise_for_status()
+
+                # Parse JavaScript: Search.setIndex({...})
+                content = resp.text.strip()
+                if content.startswith("Search.setIndex("):
+                    match = re.search(r"Search\.setIndex\((.*)\)\s*$", content, re.DOTALL)
+                    if match:
+                        json_str = match.group(1)
+                        self.index = json.loads(json_str)
+                    else:
+                        raise ValueError("Unexpected search index format")
                 else:
                     raise ValueError("Unexpected search index format")
-            else:
-                raise ValueError("Unexpected search index format")
 
-            if self.index is None:
-                raise APIError("Failed to parse nix.dev index: empty result")
-            return self.index
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching nix.dev search index") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch nix.dev index: {exc}") from exc
-        except Exception as exc:
-            raise APIError(f"Failed to parse nix.dev index: {exc}") from exc
+                if self.index is None:
+                    raise APIError("Failed to parse nix.dev index: empty result")
+                return self.index
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching nix.dev search index") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch nix.dev index: {exc}") from exc
+            except Exception as exc:
+                raise APIError(f"Failed to parse nix.dev index: {exc}") from exc
 
 
 nixdev_cache = NixDevCache()
@@ -556,30 +566,35 @@ class NoogleCache:
     def __init__(self) -> None:
         self._data: list[dict[str, Any]] | None = None
         self._builtin_types: dict[str, dict[str, str]] | None = None
+        self._init_lock = threading.Lock()
 
     def get_data(self) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]]]:
         """Fetch and cache all Noogle function data."""
         if self._data is not None:
             return self._data, self._builtin_types or {}
 
-        try:
-            resp = HTTP.get(NOOGLE_API, timeout=60)
-            resp.raise_for_status()
-            payload = resp.json()
+        with self._init_lock:
+            if self._data is not None:
+                return self._data, self._builtin_types or {}
 
-            data: list[dict[str, Any]] = payload.get("data", [])
-            builtin_types: dict[str, dict[str, str]] = payload.get("builtinTypes", {})
+            try:
+                resp = HTTP.get(NOOGLE_API, timeout=60)
+                resp.raise_for_status()
+                payload = resp.json()
 
-            self._data = data
-            self._builtin_types = builtin_types
+                data: list[dict[str, Any]] = payload.get("data", [])
+                builtin_types: dict[str, dict[str, str]] = payload.get("builtinTypes", {})
 
-            return data, builtin_types
-        except requests.Timeout as exc:
-            raise APIError("Timeout fetching Noogle data") from exc
-        except requests.RequestException as exc:
-            raise APIError(f"Failed to fetch Noogle data: {exc}") from exc
-        except Exception as exc:
-            raise APIError(f"Failed to parse Noogle data: {exc}") from exc
+                self._data = data
+                self._builtin_types = builtin_types
+
+                return data, builtin_types
+            except requests.Timeout as exc:
+                raise APIError("Timeout fetching Noogle data") from exc
+            except requests.RequestException as exc:
+                raise APIError(f"Failed to fetch Noogle data: {exc}") from exc
+            except Exception as exc:
+                raise APIError(f"Failed to parse Noogle data: {exc}") from exc
 
 
 noogle_cache = NoogleCache()

@@ -184,3 +184,52 @@ def test_http_session_retries():
     from mcp_nixos.utils import HTTP
 
     assert HTTP.get_adapter("https://x").max_retries.total == 2
+
+
+def _concurrent_first_load(cache_get, payload_response):
+    """Call cache_get from two threads with a slow HTTP.get; return the mock."""
+    import time
+    from concurrent.futures import ThreadPoolExecutor
+
+    def slow_get(*args, **kwargs):
+        time.sleep(0.1)
+        return payload_response
+
+    with patch("mcp_nixos.caches.HTTP.get", side_effect=slow_get) as get:
+        with ThreadPoolExecutor(2) as pool:
+            for f in [pool.submit(cache_get), pool.submit(cache_get)]:
+                f.result()
+    return get
+
+
+@pytest.mark.unit
+def test_nvf_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NvfCache
+
+    from tests.test_nvf import NVF_OPTIONS_HTML
+
+    resp = MagicMock(content=NVF_OPTIONS_HTML.encode())
+    assert _concurrent_first_load(NvfCache().get_options, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_nixdev_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NixDevCache
+
+    resp = MagicMock(text='Search.setIndex({"docnames": []})')
+    assert _concurrent_first_load(NixDevCache().get_index, resp).call_count == 1
+
+
+@pytest.mark.unit
+def test_noogle_cache_serializes_first_load():
+    from unittest.mock import MagicMock
+
+    from mcp_nixos.caches import NoogleCache
+
+    resp = MagicMock()
+    resp.json.return_value = {"data": [], "builtinTypes": {}}
+    assert _concurrent_first_load(NoogleCache().get_data, resp).call_count == 1
