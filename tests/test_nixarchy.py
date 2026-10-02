@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 from mcp_nixos.caches import nixarchy_docs_cache, nixarchy_options_cache
+from mcp_nixos.server import nix
 from mcp_nixos.sources.base import _browse_options
 from mcp_nixos.sources.nixarchy import (
     _info_nixarchy_docs,
@@ -200,3 +201,45 @@ def test_nixarchy_docs_github_search_finds_ai_page(monkeypatch):
     finally:
         nixarchy_docs_cache.pages = None
         nixarchy_docs_cache.origin = ""
+
+
+nix_fn = getattr(nix, "fn", nix)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("kwargs", "target"),
+    [
+        ({"action": "search", "source": "nixarchy", "query": "mcp"}, "_search_nixarchy_options"),
+        ({"action": "info", "source": "nixarchy", "query": "programs.nixarchy.mcp"}, "_info_nixarchy_options"),
+        ({"action": "stats", "source": "nixarchy"}, "_stats_nixarchy_options"),
+        ({"action": "search", "source": "nixarchy-docs", "query": "mcp"}, "_search_nixarchy_docs"),
+        ({"action": "info", "source": "nixarchy-docs", "query": "ai"}, "_info_nixarchy_docs"),
+    ],
+)
+async def test_nix_routes_nixarchy_sources(kwargs, target):
+    with patch(f"mcp_nixos.server.{target}", return_value="routed") as handler:
+        assert await nix_fn(**kwargs) == "routed"
+    handler.assert_called_once()
+
+
+@pytest.mark.unit
+async def test_nix_browse_nixarchy_uses_options_browser():
+    with patch("mcp_nixos.server._browse_options", return_value="browsed") as browse:
+        result = await nix_fn(action="browse", source="nixarchy", query="programs.nixarchy")
+    assert result == "browsed"
+    browse.assert_called_once_with("nixarchy", "programs.nixarchy")
+
+
+@pytest.mark.unit
+async def test_nix_stats_nixarchy_docs_not_available():
+    assert "Stats not available" in await nix_fn(action="stats", source="nixarchy-docs")
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("action", ["search", "info", "stats"])
+async def test_nix_unknown_source_names_nixarchy(action):
+    result = await nix_fn(action=action, source="bogus", query="x")
+    assert "nixarchy" in result
+    if action != "stats":
+        assert "nixarchy-docs" in result

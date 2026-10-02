@@ -96,4 +96,6 @@ KNOWN_SOURCES = {
     "nix-dev",
     "noogle",
     "nixhub",
+    "nixarchy",
+    "nixarchy-docs",
 }

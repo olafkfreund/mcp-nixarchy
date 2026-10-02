@@ -96,6 +96,8 @@ from .sources import (
     # Home Manager
     _info_home_manager,
     # nix.dev
+    _info_nixarchy_docs,
+    _info_nixarchy_options,
     _info_nixdev,
     _info_nixhub,
     # NixOS
@@ -113,6 +115,8 @@ from .sources import (
     _search_flakes,
     _search_home_manager,
     # nix.dev
+    _search_nixarchy_docs,
+    _search_nixarchy_options,
     _search_nixdev,
     _search_nixhub,
     _search_nixos,
@@ -124,6 +128,7 @@ from .sources import (
     _stats_flakehub,
     _stats_flakes,
     _stats_home_manager,
+    _stats_nixarchy_options,
     _stats_nixos,
     _stats_nixvim,
     _stats_noogle,
@@ -166,7 +171,7 @@ _SERVER_INSTRUCTIONS = (
     "data lags nixpkgs by months.\n\n"
     "Two tools are exposed:\n"
     "- `nix` — unified search/info/stats/browse/channels/flake-inputs/cache/store across "
-    "NixOS, Home Manager, nix-darwin, Nixvim, NVF, flakes, FlakeHub, NixHub, the NixOS wiki, "
+    "NixOS, Home Manager, nix-darwin, Nixvim, NVF, nixarchy, flakes, FlakeHub, NixHub, the NixOS wiki, "
     "nix.dev, and Noogle. For package version *history* pair with `nix_versions`.\n"
     "- `nix_versions` — commit-accurate history from NixHub (which nixpkgs commit "
     "shipped version X, what attribute path, which platforms).\n\n"
@@ -176,6 +181,10 @@ _SERVER_INSTRUCTIONS = (
     '  "search NixOS options for X"         → nix {"action":"search","query":"X","type":"options"}\n'
     '  "home-manager option for X"          → nix {"action":"search","source":"home-manager","query":"X"}\n'
     '  "NVF option for X"                   → nix {"action":"search","source":"nvf","query":"X"}\n'
+    '  "nixarchy option for X"              → nix {"action":"search","source":"nixarchy","query":"X"}\n'
+    '  "browse nixarchy options"            → nix {"action":"browse","source":"nixarchy","query":"programs.nixarchy"}\n'
+    '  "nixarchy manual on X"               → nix {"action":"search","source":"nixarchy-docs","query":"X"}\n'
+    '  "read nixarchy manual page"          → nix {"action":"info","source":"nixarchy-docs","query":"ai"}\n'
     '  "does X have a binary cache?"        → nix {"action":"cache","query":"X"}\n'
     '  "read /nix/store/<path>"             → nix {"action":"store","type":"read","query":"/nix/store/<path>"}\n'
     '  "which commit shipped X version Y?"  → nix_versions {"package":"X","version":"Y"}\n'
@@ -211,7 +220,7 @@ async def nix(
         str,
         "One of: search, info, stats, browse, channels, flake-inputs, cache, store. "
         "Use 'search' for keyword lookup, 'info' for details about a specific name, "
-        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/noogle only; "
+        "'browse' to walk an option hierarchy by prefix (home-manager/darwin/nixvim/nvf/nixarchy/noogle only; "
         "'options' is accepted as a legacy alias). "
         "'store' reads files or lists directories at an explicit /nix/store/ path.",
     ],
@@ -224,7 +233,7 @@ async def nix(
     source: Annotated[
         str,
         "Data source for search/info/stats/browse/cache. One of: nixos (default), "
-        "home-manager, darwin, flakes, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub. "
+        "home-manager, darwin, flakes, flakehub, nixvim, nvf, nixarchy, nixarchy-docs, wiki, nix-dev, noogle, nixhub. "
         "For action=flake-inputs, this may instead be a flake directory under cwd or $HOME; "
         "omit/default to use the current project. Ignored by action=store.",
     ] = "nixos",
@@ -259,6 +268,10 @@ async def nix(
       "darwin option for X"               → {"action": "search", "query": "X", "source": "darwin"}
       "nixvim option for X"               → {"action": "search", "query": "X", "source": "nixvim"}
       "NVF option for X"                  → {"action": "search", "query": "X", "source": "nvf"}
+      "nixarchy option for X"             → {"action": "search", "query": "X", "source": "nixarchy"}
+      "browse nixarchy options"           → {"action": "browse", "query": "programs.nixarchy", "source": "nixarchy"}
+      "nixarchy manual on X"              → {"action": "search", "query": "X", "source": "nixarchy-docs"}
+      "read nixarchy manual page"         → {"action": "info", "query": "ai", "source": "nixarchy-docs"}
       "what programs does pkg X provide?" → {"action": "search", "query": "X", "type": "programs"}
       "count packages/options"            → {"action": "stats"}
       "browse hm option tree under P"     → {"action": "browse", "query": "P", "source": "home-manager"}
@@ -277,9 +290,12 @@ async def nix(
     Notes:
       - To search NixOS *options*, use action=search with type=options. Do NOT use action=browse
         for source=nixos — browse is for walking a pre-indexed option tree and only works with
-        home-manager, darwin, nixvim, nvf, or noogle.
+        home-manager, darwin, nixvim, nvf, nixarchy, or noogle.
       - For source=nvf, canonical option paths are vim.*. The shorthand programs.nvf.vim.* and
         NixOS/Home Manager module path programs.nvf.settings.vim.* are normalized automatically.
+      - source=nixarchy searches nixarchy module options; source=nixarchy-docs searches the nixarchy
+        manual, and action=info reads a page by id (e.g. "ai"). Output says whether the data came from
+        the installed nixarchy or from GitHub.
       - For source=nix-dev, action=info returns the page markdown. The query may be a bare
         docname like "tutorials/nix-language", the URL printed by nix-dev search
         ("https://nix.dev/tutorials/nix-language"), or a rendered ".html" URL.
@@ -325,6 +341,10 @@ async def nix(
             return await asyncio.to_thread(_search_nixvim, query, limit)
         elif source == "nvf":
             return await asyncio.to_thread(_search_nvf, query, limit)
+        elif source == "nixarchy":
+            return await asyncio.to_thread(_search_nixarchy_options, query, limit)
+        elif source == "nixarchy-docs":
+            return await asyncio.to_thread(_search_nixarchy_docs, query, limit)
         elif source == "wiki":
             return await asyncio.to_thread(_search_wiki, query, limit)
         elif source == "nix-dev":
@@ -336,7 +356,8 @@ async def nix(
         else:
             return error(
                 f"Unknown source: {source!r}. Must be one of: "
-                "nixos, home-manager, darwin, flakes, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub."
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, nvf, nixarchy, nixarchy-docs, wiki, nix-dev, "
+                "noogle, nixhub."
             )
 
     elif action == "info":
@@ -365,6 +386,10 @@ async def nix(
             return await asyncio.to_thread(_info_nixvim, query)
         elif source == "nvf":
             return await asyncio.to_thread(_info_nvf, query)
+        elif source == "nixarchy":
+            return await asyncio.to_thread(_info_nixarchy_options, query)
+        elif source == "nixarchy-docs":
+            return await asyncio.to_thread(_info_nixarchy_docs, query)
         elif source == "wiki":
             return await asyncio.to_thread(_info_wiki, query)
         elif source == "nix-dev":
@@ -376,7 +401,8 @@ async def nix(
         else:
             return error(
                 f"Unknown source: {source!r}. For action=info, must be one of: "
-                "nixos, home-manager, darwin, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub."
+                "nixos, home-manager, darwin, flakehub, nixvim, nvf, nixarchy, nixarchy-docs, wiki, nix-dev, "
+                "noogle, nixhub."
             )
 
     elif action == "stats":
@@ -394,14 +420,16 @@ async def nix(
             return await asyncio.to_thread(_stats_nixvim)
         elif source == "nvf":
             return await asyncio.to_thread(_stats_nvf)
+        elif source == "nixarchy":
+            return await asyncio.to_thread(_stats_nixarchy_options)
         elif source == "noogle":
             return await asyncio.to_thread(_stats_noogle)
-        elif source in ["wiki", "nix-dev", "nixhub"]:
+        elif source in ["wiki", "nix-dev", "nixhub", "nixarchy-docs"]:
             return error(f"Stats not available for source={source}.")
         else:
             return error(
                 f"Unknown source: {source!r}. For action=stats, must be one of: "
-                "nixos, home-manager, darwin, flakes, flakehub, nixvim, nvf, noogle."
+                "nixos, home-manager, darwin, flakes, flakehub, nixvim, nvf, nixarchy, noogle."
             )
 
     elif action == "browse":
@@ -412,9 +440,9 @@ async def nix(
                 "To get a specific option's details, use: "
                 '{"action": "info", "query": "services.nginx.enable", "type": "option"}.'
             )
-        if source not in ["home-manager", "darwin", "nixvim", "nvf", "noogle"]:
+        if source not in ["home-manager", "darwin", "nixvim", "nvf", "nixarchy", "noogle"]:
             return error(
-                "action=browse only supports source in: home-manager, darwin, nixvim, nvf, noogle. "
+                "action=browse only supports source in: home-manager, darwin, nixvim, nvf, nixarchy, noogle. "
                 'Example: {"action": "browse", "query": "programs", "source": "home-manager"}'
             )
         if source == "nixvim":
@@ -741,6 +769,12 @@ __all__ = [
     "_info_nvf",
     "_format_nvf_option",
     "_stats_nvf",
+    # nixarchy functions
+    "_search_nixarchy_options",
+    "_info_nixarchy_options",
+    "_stats_nixarchy_options",
+    "_search_nixarchy_docs",
+    "_info_nixarchy_docs",
     "_browse_nvf_options",
     # Noogle functions
     "_get_noogle_function_path",

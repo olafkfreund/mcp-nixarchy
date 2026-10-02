@@ -51,6 +51,15 @@ from .home_manager import (
     _stats_home_manager,
 )
 
+# nixarchy options and manual
+from .nixarchy import (
+    _info_nixarchy_docs,
+    _info_nixarchy_options,
+    _search_nixarchy_docs,
+    _search_nixarchy_options,
+    _stats_nixarchy_options,
+)
+
 # nix.dev documentation
 from .nixdev import (
     _info_nixdev,
@@ -161,6 +170,11 @@ __all__ = [
     "_info_nvf",
     "_format_nvf_option",
     "_stats_nvf",
+    "_search_nixarchy_options",
+    "_info_nixarchy_options",
+    "_stats_nixarchy_options",
+    "_search_nixarchy_docs",
+    "_info_nixarchy_docs",
     "_browse_nvf_options",
     # Noogle
     "_get_noogle_function_path",
