@@ -228,7 +228,7 @@ async def nix(
         str,
         "Data source for search/info/stats/browse/cache. One of: nixos (default), "
         "home-manager, darwin, flakes, flakehub, nixvim, nvf, wiki, nix-dev, noogle, nixhub. "
-        "For action=flake-inputs, this may instead be a path to a flake directory; "
+        "For action=flake-inputs, this may instead be a flake directory under cwd or $HOME; "
         "omit/default to use the current project. Ignored by action=store.",
     ] = "nixos",
     type: Annotated[
@@ -432,8 +432,23 @@ async def nix(
         return await asyncio.to_thread(_list_channels)
 
     elif action == "flake-inputs":
-        # Determine flake directory: use source if it's not a known source name
-        flake_dir = source if source not in KNOWN_SOURCES else "."
+        if os.environ.get("MCP_NIXOS_TRANSPORT", "").strip().lower() == "http" and not env_bool(
+            "MCP_NIXOS_ALLOW_FLAKE_INPUTS"
+        ):
+            return error("flake-inputs is disabled over HTTP transport; set MCP_NIXOS_ALLOW_FLAKE_INPUTS=1 to enable")
+
+        # Known source names mean the current project; anything else is a flake directory
+        # that must live under the current directory or $HOME.
+        if source in KNOWN_SOURCES:
+            flake_dir = "."
+        else:
+            resolved = os.path.realpath(source)
+            roots = [os.path.realpath(os.getcwd()), os.path.realpath(os.path.expanduser("~"))]
+            if not os.path.isdir(resolved):
+                return error(f"Unknown source or not a flake directory: {source!r}")
+            if not any(resolved == r or resolved.startswith(r + os.sep) for r in roots):
+                return error("flake-inputs only reads flakes under the current directory or $HOME", "SECURITY_ERROR")
+            flake_dir = resolved
 
         # Validate type parameter for flake-inputs
         # Note: "packages" is accepted as alias for "list" (default type parameter)
