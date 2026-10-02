@@ -387,13 +387,48 @@ class TestNixToolFlakeInputsRouting:
                 assert "No inputs found" in result or "Flake inputs" in result
 
     @pytest.mark.asyncio
-    async def test_source_as_flake_dir(self):
+    async def test_source_as_flake_dir(self, tmp_path, monkeypatch):
         """Test that non-known source is treated as flake directory."""
+        monkeypatch.chdir(tmp_path)
         with patch("mcp_nixos.server._check_nix_available", return_value=True):
             # When source is not a known source, it should be used as the flake directory
-            result = await nix_fn(action="flake-inputs", source="/some/path", type="list")
-            # Should fail because /some/path doesn't have flake.nix
+            result = await nix_fn(action="flake-inputs", source=str(tmp_path), type="list")
+            # Should fail because the directory doesn't have flake.nix
             assert "FLAKE_ERROR" in result or "NIX_NOT_FOUND" in result
+
+    @pytest.mark.asyncio
+    async def test_source_outside_cwd_and_home_rejected(self, tmp_path, monkeypatch):
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        cwd = tmp_path / "cwd"
+        cwd.mkdir()
+        monkeypatch.chdir(cwd)
+        monkeypatch.setattr(os.path, "expanduser", lambda p: str(cwd))
+        with patch("mcp_nixos.server._get_flake_inputs") as get:
+            result = await nix_fn(action="flake-inputs", source=str(outside), type="list")
+        assert "SECURITY_ERROR" in result
+        get.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_unknown_source_typo(self):
+        result = await nix_fn(action="flake-inputs", source="nixpkgs-typo", type="list")
+        assert "Unknown source" in result
+
+    @pytest.mark.asyncio
+    async def test_disabled_over_http_without_flag(self, monkeypatch):
+        monkeypatch.setenv("MCP_NIXOS_TRANSPORT", "http")
+        monkeypatch.delenv("MCP_NIXOS_ALLOW_FLAKE_INPUTS", raising=False)
+        result = await nix_fn(action="flake-inputs")
+        assert "disabled over HTTP" in result
+
+    @pytest.mark.asyncio
+    async def test_http_with_flag_passes_through(self, monkeypatch):
+        monkeypatch.setenv("MCP_NIXOS_TRANSPORT", "http")
+        monkeypatch.setenv("MCP_NIXOS_ALLOW_FLAKE_INPUTS", "1")
+        with patch("mcp_nixos.server._flake_inputs_list", return_value="listed") as lst:
+            result = await nix_fn(action="flake-inputs")
+        assert result == "listed"
+        lst.assert_called_once()
 
 
 @pytest.mark.unit
@@ -425,9 +460,10 @@ class TestBugFixes:
     """Tests for bug fixes identified in peer review."""
 
     @pytest.mark.asyncio
-    async def test_flake_inputs_read_limit_above_100(self):
+    async def test_flake_inputs_read_limit_above_100(self, monkeypatch):
         """Bug #1: flake-inputs read should accept limits > 100 (up to 2000)."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            monkeypatch.chdir(tmpdir)
             # Create a fake flake.nix
             with open(os.path.join(tmpdir, "flake.nix"), "w") as f:
                 f.write("{}")
@@ -450,9 +486,10 @@ class TestBugFixes:
                     assert "Limit must be 1-100" not in result
 
     @pytest.mark.asyncio
-    async def test_flake_inputs_read_default_limit_is_500(self):
+    async def test_flake_inputs_read_default_limit_is_500(self, monkeypatch):
         """Bug #2: flake-inputs read with default limit should use 500, not 20."""
         with tempfile.TemporaryDirectory() as tmpdir:
+            monkeypatch.chdir(tmpdir)
             # Create a fake flake.nix
             with open(os.path.join(tmpdir, "flake.nix"), "w") as f:
                 f.write("{}")
