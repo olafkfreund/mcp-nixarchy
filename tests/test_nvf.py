@@ -203,7 +203,7 @@ class TestNvfCache:
         response = nvf_options_response(NVF_OPTIONS_HTML.encode())
         cache = NvfCache()
 
-        with patch("mcp_nixos.caches.requests.get", return_value=response) as get:
+        with patch("mcp_nixos.caches.HTTP.get", return_value=response) as get:
             first = cache.get_options()
             second = cache.get_options()
 
@@ -216,7 +216,7 @@ class TestNvfCache:
         cache = NvfCache()
 
         with (
-            patch("mcp_nixos.caches.requests.get", side_effect=requests.Timeout),
+            patch("mcp_nixos.caches.HTTP.get", side_effect=requests.Timeout),
             pytest.raises(APIError, match="Timeout fetching NVF options"),
         ):
             cache.get_options()
@@ -227,7 +227,7 @@ class TestNvfCache:
         cache = NvfCache()
 
         with (
-            patch("mcp_nixos.caches.requests.get", return_value=response),
+            patch("mcp_nixos.caches.HTTP.get", return_value=response),
             pytest.raises(APIError, match="Failed to fetch NVF options: 503 Server Error"),
         ):
             cache.get_options()
@@ -237,7 +237,7 @@ class TestNvfCache:
         cache = NvfCache()
 
         with (
-            patch("mcp_nixos.caches.requests.get", return_value=response),
+            patch("mcp_nixos.caches.HTTP.get", return_value=response),
             pytest.raises(APIError, match=r"no canonical vim\.\* options found"),
         ):
             cache.get_options()
@@ -249,7 +249,7 @@ class TestNvfCache:
         cache = NvfCache()
 
         with (
-            patch("mcp_nixos.caches.requests.get", return_value=response),
+            patch("mcp_nixos.caches.HTTP.get", return_value=response),
             patch.object(cache, "_parse_options", side_effect=ValueError("bad document")),
             pytest.raises(APIError, match="Failed to parse NVF options: bad document"),
         ):
@@ -260,7 +260,7 @@ class TestNvfCache:
         good_response = nvf_options_response()
         cache = NvfCache()
 
-        with patch("mcp_nixos.caches.requests.get", side_effect=[bad_response, good_response]) as get:
+        with patch("mcp_nixos.caches.HTTP.get", side_effect=[bad_response, good_response]) as get:
             with pytest.raises(APIError, match=r"no canonical vim\.\* options found"):
                 cache.get_options()
             options = cache.get_options()

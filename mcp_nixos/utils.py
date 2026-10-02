@@ -8,8 +8,21 @@ from typing import Any, TypedDict
 import requests
 from bs4 import BeautifulSoup
 from bs4.element import Tag
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 from .config import DocumentParseError
+
+# Shared across to_thread workers: the connection pool is thread-safe and no API used sets cookies.
+# raise_on_status=False hands the last 5xx response back so callers' raise_for_status() still decides.
+HTTP = requests.Session()
+_adapter = HTTPAdapter(
+    max_retries=Retry(
+        total=2, backoff_factor=0.3, status_forcelist=(502, 503, 504), allowed_methods=None, raise_on_status=False
+    )
+)
+HTTP.mount("https://", _adapter)
+HTTP.mount("http://", _adapter)
 
 
 def strip_html(html: str | None) -> str:
@@ -116,7 +129,7 @@ def _parse_home_manager_mdbook(soup: BeautifulSoup, query: str, prefix: str, lim
 
 def parse_html_options(url: str, query: str = "", prefix: str = "", limit: int | None = 100) -> list[dict[str, str]]:
     try:
-        resp = requests.get(url, timeout=30)
+        resp = HTTP.get(url, timeout=30)
         resp.raise_for_status()
         soup = BeautifulSoup(resp.content, "html.parser")
 

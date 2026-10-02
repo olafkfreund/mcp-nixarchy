@@ -61,7 +61,7 @@ nix develop -c bash -c 'ruff check . && ruff format --check . && mypy mcp_nixos 
 
 **2. A2: `mcp_nixos/utils.py`**
 - Add a module-level `HTTP = requests.Session()`.
-- Mount `HTTPAdapter(max_retries=Retry(total=2, backoff_factor=0.3, status_forcelist=(502, 503, 504), allowed_methods=None))` on `https://` and `http://`.
+- Mount `HTTPAdapter(max_retries=Retry(total=2, backoff_factor=0.3, status_forcelist=(502, 503, 504), allowed_methods=None, raise_on_status=False))` on `https://` and `http://`. (Deviation: `raise_on_status=False` added during implementation, so an exhausted 5xx returns the response and callers' `raise_for_status()` or `status_code` checks behave as before, instead of urllib3 raising `RetryError`.)
 - Add a comment: the session is shared across `to_thread` workers. The pool is thread-safe, and no API used sets cookies.
 - Replace all 26 call sites `requests.get(`/`requests.post(`/`requests.head(` with `HTTP.get(`/`HTTP.post(`/`HTTP.head(`. Files: `caches.py` (6), `utils.py` (1), `sources/base.py` (3), `flakehub.py` (3), `flakes.py` (2), `nixdev.py` (1), `nixhub.py` (6), `nixos.py` (2), `wiki.py` (2).
 - Import with `from ..utils import HTTP` (or `from .utils import HTTP` in `caches.py`). Keep `import requests` wherever `requests.Timeout`/`RequestException` are still used.
