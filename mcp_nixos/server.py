@@ -441,10 +441,11 @@ async def nix(
         else:
             resolved = os.path.realpath(source)
             roots = [os.path.realpath(os.getcwd()), os.path.realpath(os.path.expanduser("~"))]
-            if not os.path.isdir(resolved):
-                return error(f"Unknown source or not a flake directory: {source!r}")
+            # Roots first, so the error never reveals whether a path outside them exists.
             if not any(resolved == r or resolved.startswith(r + os.sep) for r in roots):
                 return error("flake-inputs only reads flakes under the current directory or $HOME", "SECURITY_ERROR")
+            if not os.path.isdir(resolved):
+                return error(f"Unknown source or not a flake directory: {source!r}")
             flake_dir = resolved
 
         # Validate type parameter for flake-inputs

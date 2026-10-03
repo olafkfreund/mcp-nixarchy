@@ -337,7 +337,7 @@ class NixvimCache:
                 return self.options
             if self._failed_at is not None and self._failure is not None:
                 if time.monotonic() - self._failed_at < _FAILURE_COOLDOWN:
-                    raise self._failure
+                    raise APIError(str(self._failure))
             try:
                 self.options = self._fetch()
             except APIError as exc:

@@ -179,7 +179,10 @@ def test_elasticsearch_url_env_override():
 def test_http_session_retries():
     from mcp_nixos.utils import HTTP
 
-    assert HTTP.get_adapter("https://x").max_retries.total == 2
+    retry = HTTP.get_adapter("https://x").max_retries
+    assert retry.total == 2
+    assert retry.read == 0
+    assert retry.respect_retry_after_header is False
 
 
 def _concurrent_first_load(cache_get, payload_response):
