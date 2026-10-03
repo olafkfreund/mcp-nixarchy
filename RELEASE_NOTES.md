@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.2.0](https://github.com/olafkfreund/mcp-nixarchy/compare/v3.1.0...v3.2.0) (2026-10-03)
+
+
+### Features
+
+* turn the fork into mcp-nixarchy (fixes, rename, nixarchy sources) ([#2](https://github.com/olafkfreund/mcp-nixarchy/issues/2)) ([b92b9c6](https://github.com/olafkfreund/mcp-nixarchy/commit/b92b9c6dece4acc5cb7dc21394ef3fe1f8b94cc4))
+
 ## [3.1.0](https://github.com/utensils/mcp-nixos/compare/v3.0.2...v3.1.0) (2026-09-05)
 
 
